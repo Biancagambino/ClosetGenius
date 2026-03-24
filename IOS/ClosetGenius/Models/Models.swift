@@ -1,0 +1,196 @@
+//
+//  Models.swift
+//  ClosetGenius
+//
+//  Created by Bianca Gambino on 1/14/26.
+//
+
+import Foundation
+
+// MARK: - Clothing Item Model
+struct ClothingItem: Identifiable, Codable {
+    let id: String
+    var name: String
+    var category: ClothingCategory
+    var color: ClothingColor
+    var pattern: ClothingPattern
+    var season: Season
+    var style: ClothingStyle
+    var formality: Formality
+    var imageURL: String?
+    var wearCount: Int
+    var dateAdded: Date
+    var customTags: [String]
+    
+    enum ClothingCategory: String, Codable, CaseIterable {
+        case tops, bottoms, dresses, outerwear, shoes, accessories
+    }
+    
+    enum ClothingColor: String, Codable, CaseIterable {
+        case red, blue, green, yellow, orange, purple, pink, brown
+        case black, white, gray, beige, navy, burgundy, teal, cream
+        
+        var displayName: String { rawValue.capitalized }
+    }
+    
+    enum ClothingPattern: String, Codable, CaseIterable {
+        case solid, striped, polkaDot = "polka dot", floral, plaid, geometric, animal, abstract
+        
+        var displayName: String {
+            switch self {
+            case .polkaDot: return "Polka Dot"
+            default: return rawValue.capitalized
+            }
+        }
+    }
+    
+    enum Season: String, Codable, CaseIterable {
+        case spring, summer, fall, winter, allSeason = "all season"
+        
+        var displayName: String {
+            switch self {
+            case .allSeason: return "All Season"
+            default: return rawValue.capitalized
+            }
+        }
+    }
+    
+    enum ClothingStyle: String, Codable, CaseIterable {
+        case casual, formal, sporty, bohemian, preppy, edgy, vintage, minimalist, streetwear
+        
+        var displayName: String { rawValue.capitalized }
+    }
+    
+    enum Formality: String, Codable, CaseIterable {
+        case veryFormal = "very formal", formal, business, smartCasual = "smart casual", casual, athletic
+        
+        var displayName: String {
+            switch self {
+            case .veryFormal: return "Very Formal"
+            case .smartCasual: return "Smart Casual"
+            default: return rawValue.capitalized
+            }
+        }
+    }
+}
+
+// MARK: - Outfit Model
+struct Outfit: Identifiable, Codable {
+    let id: String
+    var name: String
+    var itemIDs: [String]
+    var occasion: String
+    var dateCreated: Date
+    var wearCount: Int
+    var imageURL: String?
+    var isShared: Bool // For social feed
+    var likes: Int
+}
+
+// MARK: - User Model
+struct User: Identifiable, Codable {
+    let id: String
+    var email: String
+    var displayName: String
+    var profileImageURL: String?
+    var closetItemCount: Int
+    var sustainabilityScore: Int
+    var friendIDs: [String]
+    var customSubcategories: [String] // User-created tags
+    var newItemsPurchased: Int // Track new clothing purchases
+    var itemsReworn: Int // Track rewear count
+    var tradesMade: Int // Track successful trades
+}
+
+// MARK: - Trade Listing Model
+struct TradeListing: Identifiable, Codable {
+    let id: String
+    let itemID: String // Reference to ClothingItem
+    let ownerID: String
+    let ownerName: String
+    var condition: ItemCondition
+    var tradeType: TradeType
+    var description: String
+    var price: Double?
+    var size: String
+    var brand: String
+    var originalPrice: Double?
+    var datePosted: Date
+    var isActive: Bool
+    var viewCount: Int
+    var category: String
+    
+    enum ItemCondition: String, Codable, CaseIterable {
+        case likeNew = "like new"
+        case excellent = "excellent"
+        case good = "good"
+        case fair = "fair"
+        case wellLoved = "well loved"
+        
+        var displayName: String {
+            switch self {
+            case .likeNew: return "Like New"
+            case .wellLoved: return "Well Loved"
+            default: return rawValue.capitalized
+            }
+        }
+    }
+    
+    enum TradeType: String, Codable, CaseIterable {
+        case tradeOnly = "trade only"
+        case tradePlusCash = "trade + cash"
+        case sellOnly = "sell only"
+        
+        var displayName: String {
+            switch self {
+            case .tradeOnly: return "Trade Only"
+            case .tradePlusCash: return "Trade + Cash"
+            case .sellOnly: return "Sell Only"
+            }
+        }
+    }
+}
+
+// MARK: - Social Post Model
+struct OutfitPost: Identifiable, Codable {
+    let id: String
+    let userID: String
+    let userName: String
+    let outfitID: String
+    let caption: String
+    let imageURL: String?
+    let datePosted: Date
+    var likes: [String] // Array of user IDs who liked
+    var comments: [Comment]
+    
+    struct Comment: Identifiable, Codable {
+        let id: String
+        let userID: String
+        let userName: String
+        let text: String
+        let datePosted: Date
+    }
+}
+
+// MARK: - Message Model
+struct Message: Identifiable, Codable {
+    let id: String
+    let senderID: String
+    let senderName: String
+    let recipientID: String
+    let text: String
+    let timestamp: Date
+    var isRead: Bool
+    let relatedListingID: String?
+}
+
+// MARK: - Conversation Model
+struct Conversation: Identifiable, Codable {
+    let id: String
+    let participantIDs: [String]
+    let participantNames: [String: String] 
+    var lastMessage: String
+    var lastMessageTime: Date
+    var unreadCount: Int
+    let relatedListingID: String?
+}
