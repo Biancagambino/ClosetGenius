@@ -23,6 +23,9 @@ struct ClothingPrediction: Codable {
     let seasonConfidence: Double
     let usage: String
     let usageConfidence: Double
+    // Florence-2 fields
+    let description: String?
+    let tags: [String]?
 
     enum CodingKeys: String, CodingKey {
         case category
@@ -33,6 +36,8 @@ struct ClothingPrediction: Codable {
         case seasonConfidence   = "season_confidence"
         case usage
         case usageConfidence    = "usage_confidence"
+        case description
+        case tags
     }
 }
 
@@ -41,7 +46,7 @@ class ClosetGeniusAPI {
     static let baseURL = "https://heretical-unabdicated-gricelda.ngrok-free.dev"
 
     static func predict(image: UIImage, completion: @escaping (Result<ClothingPrediction, Error>) -> Void) {
-        guard let url = URL(string: "\(baseURL)/predict") else { return }
+        guard let url = URL(string: "\(baseURL)/scan") else { return }
         guard let imageData = image.jpegData(compressionQuality: 0.8) else { return }
 
         var request        = URLRequest(url: url)
@@ -88,6 +93,7 @@ struct ScannerView: View {
     @State private var selectedFormality = ClothingItem.Formality.casual
     @State private var customTags: [String] = []
     @State private var newTag            = ""
+    @State private var itemNotes         = ""   // Florence-2 description
 
     // Photo
     @State private var selectedPhoto: PhotosPickerItem?
@@ -226,6 +232,24 @@ struct ScannerView: View {
                         ForEach(ClothingItem.ClothingCategory.allCases, id: \.self) { category in
                             Text(category.rawValue.capitalized).tag(category)
                         }
+                    }
+                }
+
+                // ===================================
+                // DESCRIPTION (from Florence-2)
+                // ===================================
+                Section(header: Text("Description")) {
+                    ZStack(alignment: .topLeading) {
+                        if itemNotes.isEmpty {
+                            Text("AI description will appear here after scanning")
+                                .foregroundColor(.secondary)
+                                .font(.callout)
+                                .padding(.top, 8)
+                                .padding(.leading, 4)
+                        }
+                        TextEditor(text: $itemNotes)
+                            .frame(minHeight: 80)
+                            .opacity(itemNotes.isEmpty ? 0.25 : 1)
                     }
                 }
 
@@ -383,6 +407,8 @@ struct ScannerView: View {
                     ]
                     
                     // Only autofill if confidence is high enough
+                    // (Florence-2 has already filled in low-confidence fields server-side,
+                    //  so threshold here is just a safety net for edge cases)
                     let MIN_CONFIDENCE = 50.0
 
                     if prediction.categoryConfidence >= MIN_CONFIDENCE {
@@ -397,6 +423,17 @@ struct ScannerView: View {
                     if prediction.usageConfidence >= MIN_CONFIDENCE {
                         selectedStyle    = mapStyle(prediction.usage)
                         selectedFormality = mapFormality(prediction.usage)
+                    }
+
+                    // Florence-2 description — always populate
+                    if let desc = prediction.description, !desc.isEmpty {
+                        itemNotes = desc
+                    }
+
+                    // Merge Florence-2 tags into customTags (deduplicated)
+                    if let aiTags = prediction.tags {
+                        let existing = Set(customTags)
+                        customTags += aiTags.filter { !existing.contains($0) }
                     }
 
                     scanComplete = true
@@ -508,7 +545,8 @@ struct ScannerView: View {
             imageURL: imageURL,
             wearCount: 0,
             dateAdded: Date(),
-            customTags: customTags
+            customTags: customTags,
+            notes: itemNotes.isEmpty ? nil : itemNotes
         )
 
         viewModel.addItem(newItem)

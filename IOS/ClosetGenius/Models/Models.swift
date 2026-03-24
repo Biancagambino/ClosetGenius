@@ -21,6 +21,7 @@ struct ClothingItem: Identifiable, Codable {
     var wearCount: Int
     var dateAdded: Date
     var customTags: [String]
+    var notes: String?  // AI-generated description from Florence-2
     
     enum ClothingCategory: String, Codable, CaseIterable {
         case tops, bottoms, dresses, outerwear, shoes, accessories
