@@ -45,6 +45,20 @@ class ClosetGeniusAPI {
     // 🔴 Update this URL every time you restart Cell 4 in Colab
     static let baseURL = "https://heretical-unabdicated-gricelda.ngrok-free.dev"
 
+    static func chat(message: String, history: [ChatHistoryEntry], closet: [ClothingItemPayload]) async throws -> String {
+        guard let url = URL(string: "\(baseURL)/chat") else { throw URLError(.badURL) }
+        let body = try JSONEncoder().encode(ChatRequest(message: message, history: history, closet: closet))
+        var req = URLRequest(url: url)
+        req.httpMethod = "POST"
+        req.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        req.httpBody = body
+        req.timeoutInterval = 30
+        let (data, _) = try await URLSession.shared.data(for: req)
+        let decoded = try JSONDecoder().decode(ChatResponse.self, from: data)
+        if let err = decoded.error { throw NSError(domain: "ClosetGeniusAPI", code: -1, userInfo: [NSLocalizedDescriptionKey: err]) }
+        return decoded.reply ?? ""
+    }
+
     static func predict(image: UIImage, completion: @escaping (Result<ClothingPrediction, Error>) -> Void) {
         guard let url = URL(string: "\(baseURL)/scan") else { return }
         guard let imageData = image.jpegData(compressionQuality: 0.8) else { return }

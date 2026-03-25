@@ -32,6 +32,11 @@ struct MainTabView: View {
                     Label("Friends", systemImage: "person.2.fill")
                 }
             
+            AssistantView()
+                .tabItem {
+                    Label("Assistant", systemImage: "sparkles")
+                }
+
             ProfileView()
                 .tabItem {
                     Label("Profile", systemImage: "person.circle.fill")
