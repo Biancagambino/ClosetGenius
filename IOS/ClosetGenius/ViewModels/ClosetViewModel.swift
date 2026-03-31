@@ -29,8 +29,6 @@ class ClosetViewModel: ObservableObject {
                         self.items = documents.compactMap { doc in
                             try? doc.data(as: ClothingItem.self)
                         }
-                        
-                        // Update user's closet item count
                         db.collection("users").document(userId).updateData([
                             "closetItemCount": self.items.count
                         ])
@@ -48,7 +46,6 @@ class ClosetViewModel: ObservableObject {
         
         items.append(item)
         
-        // Update user's closet item count
         db.collection("users").document(userId).updateData([
             "closetItemCount": items.count
         ])
@@ -63,7 +60,6 @@ class ClosetViewModel: ObservableObject {
         
         items.removeAll { $0.id == item.id }
         
-        // Update user's closet item count
         db.collection("users").document(userId).updateData([
             "closetItemCount": items.count
         ])
@@ -80,15 +76,23 @@ class ClosetViewModel: ObservableObject {
             .document(item.id).updateData([
                 "wearCount": items[index].wearCount
             ]) { error in
-                if let error = error {
-                    print("Error updating wear count: \(error)")
-                } else {
-                    // Update sustainability stats
+                if error == nil {
                     db.collection("users").document(userId).updateData([
                         "itemsReworn": FieldValue.increment(Int64(1))
                     ])
                 }
             }
     }
+    
+    /// Update an item's description in Firestore (e.g., after user edits)
+    func updateDescription(for item: ClothingItem, description: String) {
+        guard let userId = Auth.auth().currentUser?.uid,
+              let index = items.firstIndex(where: { $0.id == item.id }) else { return }
+        
+        items[index].description = description
+        
+        let db = Firestore.firestore()
+        db.collection("users").document(userId).collection("closet")
+            .document(item.id).updateData(["description": description])
+    }
 }
-
