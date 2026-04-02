@@ -9,17 +9,17 @@ import Foundation
 import SwiftUI
 import Combine
 import FirebaseAuth
-import FirebaseFirestore
+@preconcurrency import FirebaseFirestore
 
 @MainActor
 class ClosetViewModel: ObservableObject {
     @Published var items: [ClothingItem] = []
     @Published var isLoading = false
-    
+
     func loadItems() {
         guard let userId = Auth.auth().currentUser?.uid else { return }
         isLoading = true
-        
+
         let db = Firestore.firestore()
         db.collection("users").document(userId).collection("closet")
             .getDocuments { snapshot, error in
@@ -36,41 +36,52 @@ class ClosetViewModel: ObservableObject {
                 }
             }
     }
-    
+
     func addItem(_ item: ClothingItem) {
         guard let userId = Auth.auth().currentUser?.uid else { return }
-        
+
         let db = Firestore.firestore()
         try? db.collection("users").document(userId).collection("closet")
             .document(item.id).setData(from: item)
-        
+
         items.append(item)
-        
+
         db.collection("users").document(userId).updateData([
             "closetItemCount": items.count
         ])
     }
-    
+
+    func updateItem(_ item: ClothingItem) {
+        guard let userId = Auth.auth().currentUser?.uid,
+              let index = items.firstIndex(where: { $0.id == item.id }) else { return }
+
+        items[index] = item
+
+        let db = Firestore.firestore()
+        try? db.collection("users").document(userId).collection("closet")
+            .document(item.id).setData(from: item)
+    }
+
     func deleteItem(_ item: ClothingItem) {
         guard let userId = Auth.auth().currentUser?.uid else { return }
-        
+
         let db = Firestore.firestore()
         db.collection("users").document(userId).collection("closet")
             .document(item.id).delete()
-        
+
         items.removeAll { $0.id == item.id }
-        
+
         db.collection("users").document(userId).updateData([
             "closetItemCount": items.count
         ])
     }
-    
+
     func incrementWearCount(for item: ClothingItem) {
         guard let userId = Auth.auth().currentUser?.uid,
               let index = items.firstIndex(where: { $0.id == item.id }) else { return }
-        
+
         items[index].wearCount += 1
-        
+
         let db = Firestore.firestore()
         db.collection("users").document(userId).collection("closet")
             .document(item.id).updateData([
@@ -83,14 +94,13 @@ class ClosetViewModel: ObservableObject {
                 }
             }
     }
-    
-    /// Update an item's description in Firestore (e.g., after user edits)
+
     func updateDescription(for item: ClothingItem, description: String) {
         guard let userId = Auth.auth().currentUser?.uid,
               let index = items.firstIndex(where: { $0.id == item.id }) else { return }
-        
+
         items[index].description = description
-        
+
         let db = Firestore.firestore()
         db.collection("users").document(userId).collection("closet")
             .document(item.id).updateData(["description": description])

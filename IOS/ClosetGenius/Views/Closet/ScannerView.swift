@@ -7,7 +7,6 @@
 
 import SwiftUI
 import PhotosUI
-import FirebaseStorage
 import FirebaseAuth
 
 // MARK: - Scanner Phase
@@ -119,7 +118,7 @@ struct ScannerView: View {
                     .font(.title2)
                     .fontWeight(.bold)
                 
-                Text("Florence-2 AI will automatically\ndetect category, color, season & more")
+                Text("ClosetGenius AI will automatically\ndetect category, color, season & more")
                     .font(.subheadline)
                     .foregroundColor(.gray)
                     .multilineTextAlignment(.center)
@@ -172,7 +171,7 @@ struct ScannerView: View {
                     .scaleEffect(1.4)
                     .tint(themeManager.currentTheme.color)
                 
-                Text("Florence-2 is analyzing your item...")
+                Text("ClosetGenius is analyzing your item...")
                     .font(.subheadline)
                     .foregroundColor(.gray)
                 
@@ -410,11 +409,11 @@ struct ScannerView: View {
             if itemName.isEmpty {
                 itemName = "\(selectedColor.displayName) \(selectedCategory.rawValue.capitalized)"
             }
-            
-            phase = .generatingDesc
-            
-            // Step 2: Ollama description
-            await generateDescription()
+
+            // Use Florence description directly
+            itemDescription = result.description ?? ""
+
+            phase = .review
             
         } catch {
             // Florence-2 server not running — fall back to manual entry
@@ -425,19 +424,15 @@ struct ScannerView: View {
     
     private func generateDescription() async {
         phase = .generatingDesc
+        let tags = customTags.isEmpty ? "" : ", tags: \(customTags.joined(separator: ", "))"
+        let prompt = """
+        Write 2-3 sentences describing this clothing item for a style app. Be specific and helpful for outfit planning. Do not start with "This item".
+        Item: \(itemName), \(selectedColor.displayName) \(selectedCategory.rawValue), \(selectedPattern.displayName) pattern, \(selectedSeason.displayName), \(selectedStyle.displayName) style, \(selectedFormality.displayName)\(tags).
+        Description:
+        """
         do {
-            itemDescription = try await OllamaService.generateDescription(
-                name: itemName,
-                category: selectedCategory,
-                color: selectedColor,
-                pattern: selectedPattern,
-                season: selectedSeason,
-                style: selectedStyle,
-                formality: selectedFormality,
-                customTags: customTags
-            )
+            itemDescription = try await AIClassificationService.chat(message: prompt, closetItems: [])
         } catch {
-            // Ollama not running — leave description blank, user can type
             itemDescription = ""
         }
         phase = .review
@@ -473,6 +468,7 @@ struct ScannerView: View {
             imageURL: imageURL,
             wearCount: 0,
             dateAdded: Date(),
+            notes: nil,
             customTags: customTags
         )
         
@@ -481,31 +477,11 @@ struct ScannerView: View {
     }
     
     private func uploadPhoto(image: UIImage, userId: String) async -> String? {
-        guard let imageData = image.jpegData(compressionQuality: 0.75) else { return nil }
-        
-        let storage = Storage.storage()
-        let itemId = UUID().uuidString
-        let ref = storage.reference().child("clothing_items/\(userId)/\(itemId).jpg")
-        
-        let metadata = StorageMetadata()
-        metadata.contentType = "image/jpeg"
-        
         do {
-            let uploadTask = ref.putData(imageData, metadata: metadata)
-            
-            uploadTask.observe(.progress) { snapshot in
-                if let p = snapshot.progress {
-                    Task { @MainActor in
-                        self.uploadProgress = Double(p.completedUnitCount) / Double(p.totalUnitCount)
-                    }
-                }
-            }
-            
-            _ = await uploadTask
-            let url = try await ref.downloadURL()
-            return url.absoluteString
+            let url = try await CloudinaryService.upload(image: image)
+            return url
         } catch {
-            print("Upload error: \(error)")
+            print("Cloudinary upload error: \(error)")
             return nil
         }
     }

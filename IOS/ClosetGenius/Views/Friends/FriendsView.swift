@@ -109,20 +109,22 @@ struct OutfitPostCard: View {
                 Spacer()
             }
             
-            // Outfit image placeholder
-            RoundedRectangle(cornerRadius: 15)
-                .fill(Color.gray.opacity(0.1))
-                .frame(height: 300)
-                .overlay(
-                    VStack {
-                        Image(systemName: "tshirt.fill")
-                            .font(.system(size: 60))
-                            .foregroundColor(.gray)
-                        Text("Outfit Preview")
-                            .font(.caption)
-                            .foregroundColor(.gray)
+            // Post image
+            if let urlString = post.imageURL, let url = URL(string: urlString) {
+                AsyncImage(url: url) { phase in
+                    switch phase {
+                    case .success(let img):
+                        img.resizable()
+                            .scaledToFill()
+                            .frame(height: 300)
+                            .clipShape(RoundedRectangle(cornerRadius: 15))
+                    default:
+                        postImagePlaceholder
                     }
-                )
+                }
+            } else {
+                postImagePlaceholder
+            }
             
             // Caption
             Text(post.caption)
@@ -204,11 +206,22 @@ struct OutfitPostCard: View {
             }
         }
         .padding()
-        .background(Color.white)
+        .background(Color(.systemBackground))
         .cornerRadius(15)
         .shadow(radius: 2)
     }
     
+    private var postImagePlaceholder: some View {
+        RoundedRectangle(cornerRadius: 15)
+            .fill(themeManager.currentTheme.lightBackground)
+            .frame(height: 300)
+            .overlay(
+                Image(systemName: "tshirt.fill")
+                    .font(.system(size: 48))
+                    .foregroundColor(themeManager.currentTheme.color.opacity(0.4))
+            )
+    }
+
     private func timeAgo(from date: Date) -> String {
         let interval = Date().timeIntervalSince(date)
         

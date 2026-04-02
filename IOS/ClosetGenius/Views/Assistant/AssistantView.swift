@@ -51,15 +51,15 @@ struct AssistantView: View {
                         .padding(.horizontal, 16)
                         .padding(.bottom, 8)
                     }
-                    .onChange(of: viewModel.messages.count) { _ in
+                    .onChange(of: viewModel.messages.count) {
                         withAnimation {
                             if let last = viewModel.messages.last {
                                 proxy.scrollTo(last.id, anchor: .bottom)
                             }
                         }
                     }
-                    .onChange(of: viewModel.isLoading) { loading in
-                        if loading {
+                    .onChange(of: viewModel.isLoading) {
+                        if viewModel.isLoading {
                             withAnimation { proxy.scrollTo("typing", anchor: .bottom) }
                         }
                     }
@@ -91,7 +91,7 @@ struct AssistantView: View {
                 .padding(.vertical, 8)
                 .background(Color(.systemBackground))
             }
-            .navigationTitle("Assistant")
+            .navigationTitle("Nova")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .navigationBarTrailing) {
@@ -118,17 +118,19 @@ struct AssistantView: View {
 // MARK: - Welcome Bubble
 
 private struct WelcomeBubble: View {
+    @EnvironmentObject var themeManager: ThemeManager
+
     var body: some View {
         HStack(alignment: .top, spacing: 8) {
             Image(systemName: "sparkles")
                 .font(.system(size: 14, weight: .semibold))
                 .foregroundColor(.white)
                 .frame(width: 28, height: 28)
-                .background(Color.purple.gradient)
+                .background(themeManager.currentTheme.gradient)
                 .clipShape(Circle())
 
             VStack(alignment: .leading, spacing: 4) {
-                Text("ClosetGenius Assistant")
+                Text("Nova ✦ Your Style AI")
                     .font(.caption)
                     .fontWeight(.semibold)
                     .foregroundColor(.secondary)
@@ -166,7 +168,13 @@ private struct MessageBubble: View {
                         .font(.system(size: 12, weight: .semibold))
                         .foregroundColor(.white)
                         .frame(width: 24, height: 24)
-                        .background(Color.purple.gradient)
+                        .background(
+                            LinearGradient(
+                                colors: [themeColor, themeColor.opacity(0.7)],
+                                startPoint: .topLeading,
+                                endPoint: .bottomTrailing
+                            )
+                        )
                         .clipShape(Circle())
 
                     Text(message.text)
@@ -184,6 +192,7 @@ private struct MessageBubble: View {
 // MARK: - TypingIndicator
 
 private struct TypingIndicator: View {
+    @EnvironmentObject var themeManager: ThemeManager
     @State private var phase = 0
 
     var body: some View {
@@ -192,7 +201,7 @@ private struct TypingIndicator: View {
                 .font(.system(size: 12, weight: .semibold))
                 .foregroundColor(.white)
                 .frame(width: 24, height: 24)
-                .background(Color.purple.gradient)
+                .background(themeManager.currentTheme.gradient)
                 .clipShape(Circle())
 
             HStack(spacing: 4) {

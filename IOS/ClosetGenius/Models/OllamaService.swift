@@ -93,6 +93,10 @@ class OllamaService {
         return try await callOllama(prompt: prompt, maxTokens: 200, temperature: 0.8)
     }
 
+    static func chat(prompt: String) async throws -> String {
+        return try await callOllama(prompt: prompt, maxTokens: 300, temperature: 0.8)
+    }
+
     // MARK: - Internal
 
     private static func callOllama(prompt: String, maxTokens: Int, temperature: Double) async throws -> String {
@@ -119,6 +123,33 @@ class OllamaService {
 
         let decoded = try JSONDecoder().decode(OllamaResponse.self, from: data)
         return decoded.response.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+}
+
+// MARK: - ClosetGenius Chat API
+
+enum ClosetGeniusAPI {
+    static func chat(message: String, history: [ChatHistoryEntry], closet: [ClothingItemPayload]) async throws -> String {
+        let closetSummary = closet.prefix(20)
+            .map { "- \($0.name) (\($0.category), \($0.color))" }
+            .joined(separator: "\n")
+
+        let historyText = history.suffix(6)
+            .map { "\($0.role): \($0.content)" }
+            .joined(separator: "\n")
+
+        let prompt = """
+        You are ClosetGenius, a personal style assistant. Answer the user's fashion question using their closet items below.
+
+        Closet:
+        \(closetSummary.isEmpty ? "No items yet." : closetSummary)
+
+        \(historyText.isEmpty ? "" : "Conversation so far:\n\(historyText)\n")
+        User: \(message)
+        Assistant:
+        """
+
+        return try await OllamaService.chat(prompt: prompt)
     }
 }
 

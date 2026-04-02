@@ -110,7 +110,7 @@ struct OutfitCard: View {
             }
         }
         .padding(10)
-        .background(Color.white)
+        .background(Color(.systemBackground))
         .cornerRadius(10)
         .shadow(radius: 2)
         .contextMenu {

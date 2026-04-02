@@ -8,7 +8,7 @@
 import Foundation
 
 // MARK: - Clothing Item Model
-struct ClothingItem: Identifiable, Codable {
+struct ClothingItem: Identifiable, Codable, Equatable {
     let id: String
     var name: String
     var category: ClothingCategory
@@ -21,6 +21,7 @@ struct ClothingItem: Identifiable, Codable {
     var imageURL: String?
     var wearCount: Int
     var dateAdded: Date
+    var notes: String?
     var customTags: [String]
     
     enum ClothingCategory: String, Codable, CaseIterable {
@@ -94,13 +95,16 @@ struct User: Identifiable, Codable {
     var email: String
     var displayName: String
     var profileImageURL: String?
+    var phone: String?
     var closetItemCount: Int
     var sustainabilityScore: Int
     var friendIDs: [String]
+    var blockedUserIDs: [String]
     var customSubcategories: [String]
     var newItemsPurchased: Int
     var itemsReworn: Int
     var tradesMade: Int
+    var closetVisibility: String   // "public", "friends", "private"
 }
 
 // MARK: - Trade Listing Model
@@ -120,6 +124,7 @@ struct TradeListing: Identifiable, Codable {
     var isActive: Bool
     var viewCount: Int
     var category: String
+    var friendsOnly: Bool
     
     enum ItemCondition: String, Codable, CaseIterable {
         case likeNew = "like new"

@@ -8,10 +8,9 @@
 import Foundation
 import UIKit
 
-// UPDATE THIS every time you restart Colab:
-private let COLAB_SERVER_URL = "https://YOUR-NGROK-URL.ngrok-free.app/predict"
+// MARK: - Service URL (configurable from Settings)
 
-// MARK: - Response Model (matches your Flask /predict JSON output)
+// MARK: - Response Model (matches Flask /scan JSON output)
 
 struct FlorenceClassificationResponse: Codable {
     let category: String
@@ -19,12 +18,10 @@ struct FlorenceClassificationResponse: Codable {
     let season: String
     let usage: String
     let pattern: String?
-    let confidence: Double?
-    let rawDescription: String?
+    let description: String?
 
     enum CodingKeys: String, CodingKey {
-        case category, color, season, usage, pattern, confidence
-        case rawDescription = "raw_description"
+        case category, color, season, usage, pattern, description
     }
 }
 
@@ -32,13 +29,29 @@ struct FlorenceClassificationResponse: Codable {
 
 class AIClassificationService {
 
+    static var baseURL: String {
+        get { UserDefaults.standard.string(forKey: "colabBaseURL") ?? "https://heretical-unabdicated-gricelda.ngrok-free.dev" }
+        set { UserDefaults.standard.set(newValue, forKey: "colabBaseURL") }
+    }
+    private static var serverURL: String { baseURL + "/scan" }
+    private static var chatURL: String { baseURL + "/chat" }
+
+    /// Quick reachability check — resolves true if the Colab server responds.
+    static func ping() async -> Bool {
+        guard let url = URL(string: baseURL + "/health") else { return false }
+        var req = URLRequest(url: url)
+        req.httpMethod = "GET"
+        req.timeoutInterval = 5
+        return (try? await URLSession.shared.data(for: req)) != nil
+    }
+
     /// Sends image to your Colab Flask server via multipart upload.
-    /// Matches Flask's: request.files['image']
+    /// Matches Flask's POST /scan — field name must be 'image'
     static func classify(image: UIImage) async throws -> FlorenceClassificationResponse {
         guard let imageData = image.jpegData(compressionQuality: 0.8) else {
             throw ClassificationError.imageConversionFailed
         }
-        guard let url = URL(string: COLAB_SERVER_URL) else {
+        guard let url = URL(string: serverURL) else {
             throw ClassificationError.invalidURL
         }
 
@@ -72,11 +85,11 @@ class AIClassificationService {
 
     static func mapCategory(_ raw: String) -> ClothingItem.ClothingCategory {
         let s = raw.lowercased()
-        if ["dress","gown","romper","jumpsuit","frock"].contains(where: s.contains) { return .dresses }
-        if ["jacket","coat","blazer","cardigan","parka","outerwear"].contains(where: s.contains) { return .outerwear }
-        if ["shoe","boot","sandal","sneaker","heel","loafer","flat","footwear"].contains(where: s.contains) { return .shoes }
-        if ["bag","hat","scarf","belt","wallet","watch","purse","backpack","sunglasses","handbag"].contains(where: s.contains) { return .accessories }
-        if ["jean","pant","trouser","short","skirt","legging","chino"].contains(where: s.contains) { return .bottoms }
+        if ["dress","gown","romper","jumpsuit","frock","saree","sari"].contains(where: { s.contains($0) }) { return .dresses }
+        if ["jacket","coat","blazer","cardigan","parka","outerwear","tracksuit"].contains(where: { s.contains($0) }) { return .outerwear }
+        if ["shoe","boot","sandal","sneaker","heel","loafer","flat","footwear","flip flop"].contains(where: { s.contains($0) }) { return .shoes }
+        if ["bag","hat","scarf","belt","wallet","watch","purse","backpack","sunglasses","handbag","cap","tie","earring","necklace","chain","sock","brief","underwear"].contains(where: { s.contains($0) }) { return .accessories }
+        if ["jean","pant","trouser","short","skirt","legging","chino","churidar","salwar"].contains(where: { s.contains($0) }) { return .bottoms }
         return .tops
     }
 
@@ -92,6 +105,7 @@ class AIClassificationService {
             ("pink",.pink),("rose",.pink),("blush",.pink),("coral",.pink),
             ("purple",.purple),("lavender",.purple),("violet",.purple),
             ("brown",.brown),("tan",.brown),("camel",.brown),
+            ("silver",.gray),("khaki",.beige),
             ("yellow",.yellow),("mustard",.yellow),("gold",.yellow),
             ("orange",.orange),("rust",.orange),
             ("green",.green),("olive",.green),("sage",.green),
@@ -117,7 +131,7 @@ class AIClassificationService {
         if s.contains("sport") || s.contains("gym") || s.contains("athletic") { return .athletic }
         if s.contains("formal") || s.contains("ethnic") { return .formal }
         if s.contains("business") || s.contains("office") { return .business }
-        if s.contains("smart") { return .smartCasual }
+        if s.contains("smart") || s.contains("party") { return .smartCasual }
         return .casual
     }
 
@@ -130,6 +144,47 @@ class AIClassificationService {
         if s.contains("geometric") { return .geometric }
         if s.contains("animal") || s.contains("leopard") || s.contains("zebra") { return .animal }
         return .solid
+    }
+}
+
+// MARK: - Flask Chat
+
+extension AIClassificationService {
+    /// Sends a message + closet context to the Flask /chat endpoint and returns the reply.
+    static func chat(message: String, closetItems: [ClothingItem], history: [ChatHistoryEntry] = []) async throws -> String {
+        guard let url = URL(string: chatURL) else {
+            throw ClassificationError.invalidURL
+        }
+
+        let closetPayload = closetItems.prefix(25).map { item in
+            ["name": item.name, "category": item.category.rawValue, "color": item.color.rawValue]
+        }
+
+        let historyPayload = history.map { ["role": $0.role, "content": $0.content] }
+
+        let body: [String: Any] = [
+            "message": message,
+            "closet": closetPayload,
+            "history": historyPayload
+        ]
+
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.timeoutInterval = 30
+        request.httpBody = try JSONSerialization.data(withJSONObject: body)
+
+        let (data, response) = try await URLSession.shared.data(for: request)
+
+        guard let http = response as? HTTPURLResponse, http.statusCode == 200 else {
+            throw ClassificationError.invalidResponse
+        }
+
+        if let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+           let reply = json["reply"] as? String {
+            return reply
+        }
+        throw ClassificationError.invalidResponse
     }
 }
 
@@ -151,9 +206,3 @@ enum ClassificationError: LocalizedError {
     }
 }
 
-// Helper
-private extension Array where Element == String {
-    func contains(where predicate: (String) -> Bool) -> Bool {
-        self.contains { predicate($0) }
-    }
-}

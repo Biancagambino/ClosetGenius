@@ -31,6 +31,15 @@ struct OutfitBuilderView: View {
         Array(Set(closetViewModel.items.flatMap { $0.customTags })).sorted()
     }
     
+    private var selectedItemPlaceholder: some View {
+        Rectangle()
+            .fill(themeManager.currentTheme.lightBackground)
+            .overlay(
+                Image(systemName: "tshirt.fill")
+                    .foregroundColor(themeManager.currentTheme.color.opacity(0.4))
+            )
+    }
+
     var filteredItems: [ClothingItem] {
         var items = closetViewModel.items
         
@@ -79,29 +88,39 @@ struct OutfitBuilderView: View {
                     ScrollView(.horizontal, showsIndicators: false) {
                         HStack(spacing: 10) {
                             ForEach(selectedItems) { item in
-                                VStack {
-                                    RoundedRectangle(cornerRadius: 8)
-                                        .fill(Color.gray.opacity(0.2))
+                                VStack(spacing: 4) {
+                                    ZStack(alignment: .topTrailing) {
+                                        Group {
+                                            if let urlString = item.imageURL, let url = URL(string: urlString) {
+                                                AsyncImage(url: url) { phase in
+                                                    switch phase {
+                                                    case .success(let img):
+                                                        img.resizable().scaledToFill()
+                                                    default:
+                                                        selectedItemPlaceholder
+                                                    }
+                                                }
+                                            } else {
+                                                selectedItemPlaceholder
+                                            }
+                                        }
                                         .frame(width: 80, height: 80)
-                                        .overlay(
-                                            Image(systemName: "tshirt.fill")
-                                                .foregroundColor(.gray)
-                                        )
+                                        .clipShape(RoundedRectangle(cornerRadius: 8))
+
+                                        Button(action: {
+                                            selectedItems.removeAll { $0.id == item.id }
+                                        }) {
+                                            Image(systemName: "xmark.circle.fill")
+                                                .foregroundColor(.red)
+                                                .background(Color.white.opacity(0.8).clipShape(Circle()))
+                                        }
+                                        .padding(4)
+                                    }
                                     Text(item.name)
                                         .font(.caption2)
                                         .lineLimit(1)
+                                        .frame(width: 80)
                                 }
-                                .frame(width: 80)
-                                .overlay(
-                                    Button(action: {
-                                        selectedItems.removeAll { $0.id == item.id }
-                                    }) {
-                                        Image(systemName: "xmark.circle.fill")
-                                            .foregroundColor(.red)
-                                    }
-                                    .padding(4),
-                                    alignment: .topTrailing
-                                )
                             }
                         }
                         .padding(.horizontal)
@@ -259,7 +278,12 @@ struct OutfitBuilderView: View {
                 .font(.headline)
                 .padding()
             
-            if closetViewModel.items.isEmpty {
+            if closetViewModel.isLoading {
+                Spacer()
+                ProgressView("Loading your closet...")
+                    .tint(themeManager.currentTheme.color)
+                Spacer()
+            } else if closetViewModel.items.isEmpty {
                 VStack(spacing: 20) {
                     Image(systemName: "tshirt")
                         .font(.system(size: 60))
@@ -383,37 +407,60 @@ struct SelectableItemCard: View {
     let isSelected: Bool
     let action: () -> Void
     @EnvironmentObject var themeManager: ThemeManager
-    
+
     var body: some View {
         Button(action: action) {
             VStack(alignment: .leading, spacing: 4) {
-                RoundedRectangle(cornerRadius: 8)
-                    .fill(Color.gray.opacity(0.2))
-                    .frame(height: 100)
-                    .overlay(
-                        Image(systemName: "tshirt.fill")
-                            .font(.title2)
-                            .foregroundColor(.gray)
-                    )
-                    .overlay(
+                ZStack(alignment: .topTrailing) {
+                    if let urlString = item.imageURL, let url = URL(string: urlString) {
+                        AsyncImage(url: url) { phase in
+                            switch phase {
+                            case .success(let img):
+                                img.resizable()
+                                    .scaledToFill()
+                                    .frame(height: 100)
+                                    .clipped()
+                            default:
+                                cardPlaceholder
+                            }
+                        }
+                        .frame(height: 100)
+                        .cornerRadius(8)
+                    } else {
+                        cardPlaceholder
+                    }
+
+                    if isSelected {
                         Image(systemName: "checkmark.circle.fill")
                             .foregroundColor(themeManager.currentTheme.color)
                             .font(.title2)
-                            .opacity(isSelected ? 1 : 0)
-                            .padding(8),
-                        alignment: .topTrailing
-                    )
-                
+                            .background(Color.white.opacity(0.85).clipShape(Circle()))
+                            .padding(6)
+                    }
+                }
+
                 Text(item.name)
                     .font(.caption)
                     .fontWeight(.medium)
                     .lineLimit(1)
-                
+                    .foregroundColor(.primary)
+
                 Text(item.formality.displayName)
                     .font(.caption2)
                     .foregroundColor(.gray)
             }
         }
         .buttonStyle(PlainButtonStyle())
+    }
+
+    private var cardPlaceholder: some View {
+        RoundedRectangle(cornerRadius: 8)
+            .fill(themeManager.currentTheme.lightBackground)
+            .frame(height: 100)
+            .overlay(
+                Image(systemName: "tshirt.fill")
+                    .font(.title2)
+                    .foregroundColor(themeManager.currentTheme.color.opacity(0.4))
+            )
     }
 }

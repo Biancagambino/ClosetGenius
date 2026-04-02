@@ -9,7 +9,7 @@ import Foundation
 import SwiftUI
 import Combine
 import FirebaseAuth
-import FirebaseFirestore
+@preconcurrency import FirebaseFirestore
 
 @MainActor
 class TradingViewModel: ObservableObject {
@@ -17,53 +17,58 @@ class TradingViewModel: ObservableObject {
     @Published var myListings: [TradeListing] = []
     @Published var wishlist: [String] = []
     @Published var isLoading = false
-    
-    func loadTradeListings() {
-        guard let userId = Auth.auth().currentUser?.uid else { return }
+
+    func loadTradeListings(friendIDs: [String] = []) {
+        guard Auth.auth().currentUser?.uid != nil else { return }
         isLoading = true
-        
+
         let db = Firestore.firestore()
-        
-        // Load all active listings (including your own for testing)
         db.collection("tradeListings")
             .whereField("isActive", isEqualTo: true)
             .getDocuments { snapshot, error in
                 Task { @MainActor in
                     self.isLoading = false
-                    if let error = error {
-                        print("Error loading listings: \(error)")
-                    }
                     if let documents = snapshot?.documents {
-                        self.tradeListings = documents.compactMap { doc in
-                            try? doc.data(as: TradeListing.self)
+                        let all = documents.compactMap { try? $0.data(as: TradeListing.self) }
+                        // Filter out friends-only listings unless you're their friend
+                        self.tradeListings = all.filter { listing in
+                            !listing.friendsOnly || friendIDs.contains(listing.ownerID)
                         }
-                        print("Loaded \(self.tradeListings.count) listings")
                     }
                 }
             }
     }
-    
+
     func loadMyListings() {
         guard let userId = Auth.auth().currentUser?.uid else { return }
-        
+
         let db = Firestore.firestore()
         db.collection("tradeListings")
             .whereField("ownerID", isEqualTo: userId)
             .getDocuments { snapshot, error in
                 Task { @MainActor in
                     if let documents = snapshot?.documents {
-                        self.myListings = documents.compactMap { doc in
-                            try? doc.data(as: TradeListing.self)
-                        }
+                        self.myListings = documents.compactMap { try? $0.data(as: TradeListing.self) }
                     }
                 }
             }
     }
-    
-    func createListing(item: ClothingItem, condition: TradeListing.ItemCondition, tradeType: TradeListing.TradeType, description: String, price: Double?, size: String, brand: String, originalPrice: Double?) {
-        guard let userId = Auth.auth().currentUser?.uid,
-              let userName = Auth.auth().currentUser?.displayName else { return }
-        
+
+    func createListing(
+        item: ClothingItem,
+        condition: TradeListing.ItemCondition,
+        tradeType: TradeListing.TradeType,
+        description: String,
+        price: Double?,
+        size: String,
+        brand: String,
+        originalPrice: Double?,
+        ownerName: String,
+        friendsOnly: Bool = false
+    ) {
+        guard let userId = Auth.auth().currentUser?.uid else { return }
+        let userName = ownerName.isEmpty ? (Auth.auth().currentUser?.displayName ?? "User") : ownerName
+
         let listing = TradeListing(
             id: UUID().uuidString,
             itemID: item.id,
@@ -79,9 +84,10 @@ class TradingViewModel: ObservableObject {
             datePosted: Date(),
             isActive: true,
             viewCount: 0,
-            category: item.category.rawValue
+            category: item.category.rawValue,
+            friendsOnly: friendsOnly
         )
-        
+
         let db = Firestore.firestore()
         do {
             try db.collection("tradeListings").document(listing.id).setData(from: listing) { error in
@@ -98,22 +104,19 @@ class TradingViewModel: ObservableObject {
             print("Error encoding listing: \(error)")
         }
     }
-    
+
     func deleteListing(_ listing: TradeListing) {
         let db = Firestore.firestore()
         db.collection("tradeListings").document(listing.id).delete()
-        
         myListings.removeAll { $0.id == listing.id }
         tradeListings.removeAll { $0.id == listing.id }
     }
-    
+
     func toggleWishlist(listingId: String) {
         if wishlist.contains(listingId) {
             wishlist.removeAll { $0 == listingId }
         } else {
             wishlist.append(listingId)
         }
-        
-        // TODO: Save wishlist to Firebase
     }
 }

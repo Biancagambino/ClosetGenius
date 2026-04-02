@@ -7,6 +7,7 @@
 
 import Foundation
 import SwiftUI
+import Combine
 
 // MARK: - Message Types
 
@@ -87,14 +88,13 @@ class AssistantViewModel: ObservableObject {
         isLoading = true
 
         let history = buildHistory()
-        let payload = closetItems.map { ClothingItemPayload(from: $0) }
 
         Task {
             do {
-                let reply = try await ClosetGeniusAPI.chat(
+                let reply = try await AIClassificationService.chat(
                     message: text,
-                    history: history,
-                    closet: payload
+                    closetItems: closetItems,
+                    history: history
                 )
                 messages.append(AIMessage(role: .assistant, text: reply))
             } catch {

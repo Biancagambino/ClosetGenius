@@ -17,17 +17,10 @@ struct TradingMarketplaceView: View {
     @EnvironmentObject var themeManager: ThemeManager
     
     var filteredListings: [TradeListing] {
-        var listings = viewModel.tradeListings
-        
-        if let filter = selectedFilter {
-            // TODO: Filter by category when we have clothing item details
+        guard let filter = selectedFilter else { return viewModel.tradeListings }
+        return viewModel.tradeListings.filter {
+            $0.category.lowercased() == filter.lowercased()
         }
-        
-        if showingFriendsOnly {
-            // TODO: Filter by friends when friends system is fully integrated
-        }
-        
-        return listings
     }
     
     var body: some View {
@@ -145,10 +138,12 @@ struct TradingMarketplaceView: View {
         }
         .onChange(of: showingCreateListing) { _, isShowing in
             if !isShowing {
-                // Reload listings when sheet is dismissed
                 viewModel.loadTradeListings()
                 viewModel.loadMyListings()
             }
+        }
+        .onChange(of: showingFriendsOnly) { _, _ in
+            viewModel.loadTradeListings()
         }
         .onAppear {
             viewModel.loadTradeListings()
@@ -266,7 +261,7 @@ struct TradeListingCard: View {
             }
         }
         .padding(10)
-        .background(Color.white)
+        .background(Color(.systemBackground))
         .cornerRadius(10)
         .shadow(radius: 2)
     }
@@ -349,6 +344,7 @@ struct MyListingsView: View {
 struct CreateListingView: View {
     @ObservedObject var closetViewModel: ClosetViewModel
     @ObservedObject var tradingViewModel: TradingViewModel
+    @EnvironmentObject var authViewModel: AuthViewModel
     @State private var selectedItem: ClothingItem? = nil
     @State private var selectedCondition = TradeListing.ItemCondition.good
     @State private var selectedTradeType = TradeListing.TradeType.tradeOnly
@@ -357,6 +353,7 @@ struct CreateListingView: View {
     @State private var size = ""
     @State private var brand = ""
     @State private var originalPrice = ""
+    @State private var friendsOnly = false
     @Environment(\.dismiss) var dismiss
     @EnvironmentObject var themeManager: ThemeManager
     
@@ -395,7 +392,7 @@ struct CreateListingView: View {
                             Text("Add items to your closet first")
                                 .foregroundColor(.gray)
                         } else {
-                            ForEach(closetViewModel.items.prefix(5)) { item in
+                            ForEach(closetViewModel.items) { item in
                                 Button(action: { selectedItem = item }) {
                                     HStack {
                                         RoundedRectangle(cornerRadius: 8)
@@ -416,7 +413,8 @@ struct CreateListingView: View {
                 Section(header: Text("Item Details")) {
                     TextField("Brand (e.g., Nike, Zara)", text: $brand)
                     TextField("Size (e.g., M, 32x30)", text: $size)
-                    TextField("Description", text: $description)
+                    TextField("Description", text: $description, axis: .vertical)
+                        .lineLimit(3...6)
                 }
                 
                 Section(header: Text("Condition & Pricing")) {
@@ -447,26 +445,42 @@ struct CreateListingView: View {
                     }
                 }
                 
+                Section(header: Text("Visibility")) {
+                    Toggle(isOn: $friendsOnly) {
+                        VStack(alignment: .leading, spacing: 2) {
+                            Label("Friends Only", systemImage: "person.2.fill")
+                            Text("Only your friends will see this listing")
+                                .font(.caption)
+                                .foregroundColor(.secondary)
+                        }
+                    }
+                    .tint(themeManager.currentTheme.color)
+                }
+
                 Section(footer: Text("Your contact info won't be shared until you accept a trade request")) {
                     Button("Create Listing") {
                         if let item = selectedItem {
-                            let priceValue = Double(price)
-                            let originalPriceValue = Double(originalPrice)
-                            
                             tradingViewModel.createListing(
                                 item: item,
                                 condition: selectedCondition,
                                 tradeType: selectedTradeType,
                                 description: description.isEmpty ? item.name : description,
-                                price: priceValue,
+                                price: Double(price),
                                 size: size,
                                 brand: brand,
-                                originalPrice: originalPriceValue
+                                originalPrice: Double(originalPrice),
+                                ownerName: authViewModel.currentUser?.displayName ?? "",
+                                friendsOnly: friendsOnly
                             )
                             dismiss()
                         }
                     }
                     .disabled(selectedItem == nil || size.isEmpty || brand.isEmpty)
+                }
+                .onChange(of: selectedItem) { _, newItem in
+                    if let item = newItem, description.isEmpty {
+                        description = item.description
+                    }
                 }
             }
             .navigationTitle("Create Listing")
