@@ -210,7 +210,7 @@ struct ScannerView: View {
                         .foregroundColor(phase == .generatingDesc ? .orange : .green)
                     
                     if phase == .generatingDesc {
-                        Text("Llama 3 is writing a description...")
+                        Text("AI is writing a description...")
                             .font(.caption)
                             .foregroundColor(.orange)
                     } else {
@@ -283,7 +283,7 @@ struct ScannerView: View {
                     HStack {
                         ProgressView()
                             .tint(themeManager.currentTheme.color)
-                        Text("Generating with Llama 3...")
+                        Text("Generating description...")
                             .font(.caption)
                             .foregroundColor(.gray)
                             .padding(.leading, 8)

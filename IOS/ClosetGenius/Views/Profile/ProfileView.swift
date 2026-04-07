@@ -353,11 +353,6 @@ struct SettingsView: View {
                         Spacer()
                         Text("1.0.0").foregroundColor(.gray)
                     }
-                    HStack {
-                        Text("Built with")
-                        Spacer()
-                        Text("Florence-2 + Llama 3").foregroundColor(.gray).font(.caption)
-                    }
                 }
             }
             .navigationTitle("Settings")
@@ -648,9 +643,9 @@ struct HelpSupportView: View {
 
     let faqs: [(String, String)] = [
         ("How do I scan a clothing item?",
-         "Tap the camera icon in the Closet tab. Choose a photo from your library or take one. Florence-2 AI will automatically detect the category, color, season, and generate a description."),
+         "Tap the camera icon in the Closet tab. Choose a photo from your library or take one. The AI will automatically detect the category, color, season, and generate a description."),
         ("Why is my AI server not working?",
-         "The AI server runs on Google Colab and needs to be restarted each session. Open your Colab notebook and run all cells. Update the ngrok URL in AIClassificationService.swift with the new URL."),
+         "The AI runs in the cloud and is usually always available. If it's not responding, try again in a few seconds — it may be starting up."),
         ("How do I create an outfit?",
          "Go to the Outfits tab and tap the + button. Select items from your closet and save the combination. You can also use the Outfit Builder with smart filters."),
         ("How does trading work?",
@@ -660,7 +655,7 @@ struct HelpSupportView: View {
         ("How do I change the app theme?",
          "Go to Profile → Theme Color and pick from the available colors."),
         ("What is Nova?",
-         "Nova is your AI style assistant powered by Llama 3. Tap the sparkle button to chat with Nova about outfit ideas, styling tips, and more based on your closet."),
+         "Nova is your AI style assistant. Tap the sparkle button to chat with Nova about outfit ideas, styling tips, and more based on your closet."),
     ]
 
     var body: some View {
