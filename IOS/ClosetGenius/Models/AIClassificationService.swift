@@ -29,7 +29,7 @@ struct FlorenceClassificationResponse: Codable {
 
 class AIClassificationService {
 
-    static let baseURL = "https://closetgenius-api-juhqrjakkq-uc.a.run.app"
+    static let baseURL = "https://closetgenius-api-22315601029.us-central1.run.app"
     private static var serverURL: String { baseURL + "/scan" }
     private static var chatURL: String { baseURL + "/chat" }
 
