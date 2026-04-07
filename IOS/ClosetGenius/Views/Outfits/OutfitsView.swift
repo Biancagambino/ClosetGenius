@@ -9,8 +9,9 @@ import SwiftUI
 
 struct OutfitsView: View {
     @StateObject private var viewModel = OutfitViewModel()
+    @StateObject private var closetViewModel = ClosetViewModel()
     @EnvironmentObject var themeManager: ThemeManager
-    
+
     var body: some View {
         NavigationView {
             VStack {
@@ -25,7 +26,7 @@ struct OutfitsView: View {
                             .foregroundColor(.gray)
                             .multilineTextAlignment(.center)
                             .padding()
-                        
+
                         NavigationLink(destination: OutfitBuilderView()) {
                             Text("Create Outfit")
                                 .foregroundColor(.white)
@@ -39,7 +40,7 @@ struct OutfitsView: View {
                     ScrollView {
                         LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 15) {
                             ForEach(viewModel.outfits) { outfit in
-                                OutfitCard(outfit: outfit, viewModel: viewModel)
+                                OutfitCard(outfit: outfit, viewModel: viewModel, closetItems: closetViewModel.items)
                             }
                         }
                         .padding()
@@ -57,6 +58,7 @@ struct OutfitsView: View {
             }
             .onAppear {
                 viewModel.loadOutfits()
+                closetViewModel.loadItems()
             }
         }
     }
@@ -65,20 +67,52 @@ struct OutfitsView: View {
 struct OutfitCard: View {
     let outfit: Outfit
     @ObservedObject var viewModel: OutfitViewModel
+    let closetItems: [ClothingItem]
     @EnvironmentObject var themeManager: ThemeManager
     @State private var showingDeleteConfirmation = false
-    
+
+    private var outfitPieces: [ClothingItem] {
+        outfit.itemIDs.compactMap { id in closetItems.first { $0.id == id } }
+    }
+
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
-            // Image placeholder
-            RoundedRectangle(cornerRadius: 10)
-                .fill(Color.gray.opacity(0.2))
-                .frame(height: 150)
-                .overlay(
+            // 2x2 grid of item images (up to 4)
+            let pieces = Array(outfitPieces.prefix(4))
+            ZStack {
+                RoundedRectangle(cornerRadius: 10)
+                    .fill(themeManager.currentTheme.lightBackground)
+                    .frame(height: 150)
+
+                if pieces.isEmpty {
                     Image(systemName: "rectangle.3.group.fill")
                         .font(.largeTitle)
-                        .foregroundColor(.gray)
-                )
+                        .foregroundColor(themeManager.currentTheme.color.opacity(0.4))
+                } else {
+                    LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 2) {
+                        ForEach(pieces) { item in
+                            if let urlString = item.imageURL, let url = URL(string: urlString) {
+                                AsyncImage(url: url) { phase in
+                                    switch phase {
+                                    case .success(let img):
+                                        img.resizable().scaledToFill()
+                                    default:
+                                        Color(themeManager.currentTheme.lightBackground)
+                                    }
+                                }
+                                .frame(height: pieces.count <= 2 ? 148 : 72)
+                                .clipped()
+                            } else {
+                                Color(themeManager.currentTheme.lightBackground)
+                                    .frame(height: pieces.count <= 2 ? 148 : 72)
+                            }
+                        }
+                    }
+                    .frame(height: 150)
+                    .clipShape(RoundedRectangle(cornerRadius: 10))
+                }
+            }
+            .frame(height: 150)
             
             VStack(alignment: .leading, spacing: 4) {
                 Text(outfit.name)

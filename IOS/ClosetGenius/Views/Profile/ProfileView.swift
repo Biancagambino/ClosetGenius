@@ -309,9 +309,6 @@ struct SettingsView: View {
     @AppStorage("dailyReminderEnabled") private var dailyReminderEnabled = true
     @AppStorage("outfitSuggestionsEnabled") private var outfitSuggestionsEnabled = true
     @State private var showTradingHistory = false
-    @State private var colabURL = AIClassificationService.baseURL
-    @State private var colabConnected: Bool? = nil
-    @State private var isPinging = false
 
     var body: some View {
         NavigationView {
@@ -350,42 +347,6 @@ struct SettingsView: View {
                     }
                 }
 
-                Section(header: Text("AI Server"), footer: Text("Your permanent GCP backend URL. No need to update this.")) {
-                    HStack(spacing: 8) {
-                        Image(systemName: "link")
-                            .foregroundColor(themeManager.currentTheme.color)
-                        TextField("https://closetgenius-api-22315601029.us-central1.run.app", text: $colabURL)
-                            .autocorrectionDisabled()
-                            .autocapitalization(.none)
-                            .font(.caption)
-                            .onSubmit { saveColabURL() }
-                    }
-
-                    HStack {
-                        Image(systemName: "server.rack")
-                            .foregroundColor(themeManager.currentTheme.color)
-                        Text("Colab Status")
-                        Spacer()
-                        if isPinging {
-                            ProgressView().scaleEffect(0.7)
-                        } else {
-                            Circle()
-                                .fill(colabConnected == nil ? Color.gray : colabConnected! ? Color.green : Color.red)
-                                .frame(width: 8, height: 8)
-                            Text(colabConnected == nil ? "Unknown" : colabConnected! ? "Connected" : "Offline")
-                                .font(.caption)
-                                .foregroundColor(.secondary)
-                        }
-                        Button("Test") { pingColab() }
-                            .font(.caption)
-                            .foregroundColor(themeManager.currentTheme.color)
-                    }
-
-                    Button("Save URL") { saveColabURL() }
-                        .foregroundColor(themeManager.currentTheme.color)
-                        .font(.subheadline)
-                }
-
                 Section(header: Text("About")) {
                     HStack {
                         Text("Version")
@@ -414,26 +375,6 @@ struct SettingsView: View {
                 TradingHistoryView()
                     .environmentObject(themeManager)
                     .environmentObject(authViewModel)
-            }
-            .onAppear { colabURL = AIClassificationService.baseURL }
-        }
-    }
-
-    private func saveColabURL() {
-        let trimmed = colabURL.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmed.isEmpty else { return }
-        AIClassificationService.baseURL = trimmed
-        pingColab()
-    }
-
-    private func pingColab() {
-        isPinging = true
-        colabConnected = nil
-        Task {
-            let result = await AIClassificationService.ping()
-            await MainActor.run {
-                colabConnected = result
-                isPinging = false
             }
         }
     }

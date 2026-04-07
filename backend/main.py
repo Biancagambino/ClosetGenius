@@ -162,9 +162,20 @@ def _run_florence_task(image: Image.Image, task_prompt: str, text_input: str = "
     return parsed.get(task_prompt, "")
 
 
+def _crop_center(image: Image.Image, ratio: float = 0.7) -> Image.Image:
+    """Crop to the center region to remove background before color detection."""
+    w, h = image.size
+    crop_w, crop_h = int(w * ratio), int(h * ratio)
+    left = (w - crop_w) // 2
+    top = (h - crop_h) // 2
+    return image.crop((left, top, left + crop_w, top + crop_h))
+
+
 def describe_image(image: Image.Image) -> dict:
     caption = _run_florence_task(image, "<CAPTION>")
-    detailed = _run_florence_task(image, "<DETAILED_CAPTION>")
+    # Use center-cropped image for detailed caption so background colors are excluded
+    cropped = _crop_center(image)
+    detailed = _run_florence_task(cropped, "<DETAILED_CAPTION>")
     words = re.findall(r"\b[a-zA-Z]{3,}\b", detailed.lower())
     tags = list({w for w in words if w in FASHION_KEYWORDS})
     return {"caption": caption, "detailed_caption": detailed, "tags": tags}

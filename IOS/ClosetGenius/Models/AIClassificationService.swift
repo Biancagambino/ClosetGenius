@@ -29,10 +29,7 @@ struct FlorenceClassificationResponse: Codable {
 
 class AIClassificationService {
 
-    static var baseURL: String {
-        get { UserDefaults.standard.string(forKey: "colabBaseURL") ?? "https://closetgenius-api-22315601029.us-central1.run.app" }
-        set { UserDefaults.standard.set(newValue, forKey: "colabBaseURL") }
-    }
+    static let baseURL = "https://closetgenius-api-22315601029.us-central1.run.app"
     private static var serverURL: String { baseURL + "/scan" }
     private static var chatURL: String { baseURL + "/chat" }
 
@@ -171,7 +168,7 @@ extension AIClassificationService {
         var request = URLRequest(url: url)
         request.httpMethod = "POST"
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        request.timeoutInterval = 30
+        request.timeoutInterval = 60
         request.httpBody = try JSONSerialization.data(withJSONObject: body)
 
         let (data, response) = try await URLSession.shared.data(for: request)
@@ -197,9 +194,9 @@ enum ClassificationError: LocalizedError {
     var errorDescription: String? {
         switch self {
         case .imageConversionFailed: return "Could not prepare image for upload."
-        case .invalidURL: return "Update COLAB_SERVER_URL in AIClassificationService.swift."
-        case .invalidResponse: return "Unexpected response from server."
-        case .httpError(let c): return "Server error \(c) — is Colab still running?"
+        case .invalidURL: return "Invalid server URL."
+        case .invalidResponse: return "Could not reach the AI server. Please try again."
+        case .httpError(let c): return "Server error \(c). Please try again."
         case .serverError(let m): return "Server error: \(m)"
         case .serverUnreachable: return "AI server unreachable."
         }
