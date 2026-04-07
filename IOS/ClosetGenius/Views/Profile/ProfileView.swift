@@ -350,11 +350,11 @@ struct SettingsView: View {
                     }
                 }
 
-                Section(header: Text("AI Server"), footer: Text("Paste your ngrok URL here every time you restart Colab.")) {
+                Section(header: Text("AI Server"), footer: Text("Your permanent GCP backend URL. No need to update this.")) {
                     HStack(spacing: 8) {
                         Image(systemName: "link")
                             .foregroundColor(themeManager.currentTheme.color)
-                        TextField("https://your-ngrok-url.ngrok-free.app", text: $colabURL)
+                        TextField("https://closetgenius-api-22315601029.us-central1.run.app", text: $colabURL)
                             .autocorrectionDisabled()
                             .autocapitalization(.none)
                             .font(.caption)

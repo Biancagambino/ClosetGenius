@@ -30,7 +30,7 @@ struct FlorenceClassificationResponse: Codable {
 class AIClassificationService {
 
     static var baseURL: String {
-        get { UserDefaults.standard.string(forKey: "colabBaseURL") ?? "https://heretical-unabdicated-gricelda.ngrok-free.dev" }
+        get { UserDefaults.standard.string(forKey: "colabBaseURL") ?? "https://closetgenius-api-22315601029.us-central1.run.app" }
         set { UserDefaults.standard.set(newValue, forKey: "colabBaseURL") }
     }
     private static var serverURL: String { baseURL + "/scan" }
