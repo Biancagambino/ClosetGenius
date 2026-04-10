@@ -81,12 +81,39 @@ struct Outfit: Identifiable, Codable {
     let id: String
     var name: String
     var itemIDs: [String]
-    var occasion: String
+    var occasion: String       // mood / vibe
     var dateCreated: Date
+    var plannedDate: Date?     // calendar planning
+    var collectionIDs: [String] // collections this outfit belongs to
     var wearCount: Int
     var imageURL: String?
     var isShared: Bool
     var likes: Int
+
+    init(id: String, name: String, itemIDs: [String], occasion: String,
+         dateCreated: Date, plannedDate: Date? = nil, collectionIDs: [String] = [],
+         wearCount: Int, imageURL: String?, isShared: Bool, likes: Int) {
+        self.id = id
+        self.name = name
+        self.itemIDs = itemIDs
+        self.occasion = occasion
+        self.dateCreated = dateCreated
+        self.plannedDate = plannedDate
+        self.collectionIDs = collectionIDs
+        self.wearCount = wearCount
+        self.imageURL = imageURL
+        self.isShared = isShared
+        self.likes = likes
+    }
+}
+
+// MARK: - Outfit Collection Model
+struct OutfitCollection: Identifiable, Codable {
+    let id: String
+    var name: String
+    var emoji: String
+    var outfitIDs: [String]
+    var dateCreated: Date
 }
 
 // MARK: - User Model

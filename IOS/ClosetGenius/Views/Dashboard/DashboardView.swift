@@ -38,7 +38,7 @@ struct DashboardView: View {
                                 .frame(height: 80)
                                 .overlay(
                                     HStack(spacing: 8) {
-                                        ProgressView().scaleEffect(0.8)
+                                        CGLoadingInline()
                                         Text("Weather…").font(.caption).foregroundColor(.secondary)
                                     }
                                 )
@@ -217,7 +217,7 @@ struct DashboardView: View {
 
             if isLoadingSuggestion {
                 HStack(spacing: 10) {
-                    ProgressView().tint(themeManager.currentTheme.color)
+                    CGLoadingInline()
                     Text("Styling your outfit…")
                         .font(.subheadline).foregroundColor(.secondary)
                 }

@@ -61,7 +61,7 @@ struct ClosetView: View {
                 // ── Content ──────────────────────────────────────────────
                 if viewModel.isLoading {
                     Spacer()
-                    ProgressView("Loading your closet...")
+                    CGLoadingView(message: "Loading your closet...")
                     Spacer()
                 } else if viewModel.items.isEmpty {
                     emptyState

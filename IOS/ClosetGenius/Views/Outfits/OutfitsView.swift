@@ -9,39 +9,80 @@ struct OutfitsView: View {
     @StateObject private var viewModel = OutfitViewModel()
     @StateObject private var closetViewModel = ClosetViewModel()
     @EnvironmentObject var themeManager: ThemeManager
+    @State private var selectedTab: OutfitTab = .outfits
     @State private var showingBuilderPicker = false
     @State private var navigateToSwipe = false
     @State private var navigateToFit = false
 
+    enum OutfitTab: String, CaseIterable {
+        case outfits = "My Outfits"
+        case calendar = "Calendar"
+        case collections = "Collections"
+
+        var icon: String {
+            switch self {
+            case .outfits:     return "rectangle.3.group.fill"
+            case .calendar:    return "calendar"
+            case .collections: return "folder.fill"
+            }
+        }
+    }
+
     var body: some View {
         NavigationView {
-            Group {
-                if viewModel.outfits.isEmpty {
-                    emptyState
-                } else {
-                    ScrollView {
-                        LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 15) {
-                            ForEach(viewModel.outfits) { outfit in
-                                OutfitCard(outfit: outfit, viewModel: viewModel, closetItems: closetViewModel.items)
+            VStack(spacing: 0) {
+                // Tab picker
+                HStack(spacing: 0) {
+                    ForEach(OutfitTab.allCases, id: \.self) { tab in
+                        Button {
+                            withAnimation(.easeInOut(duration: 0.2)) { selectedTab = tab }
+                        } label: {
+                            VStack(spacing: 4) {
+                                Image(systemName: tab.icon)
+                                    .font(.caption)
+                                Text(tab.rawValue)
+                                    .font(.caption2)
+                                    .fontWeight(selectedTab == tab ? .semibold : .regular)
+                            }
+                            .foregroundColor(selectedTab == tab ? themeManager.currentTheme.color : .secondary)
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, 10)
+                            .overlay(alignment: .bottom) {
+                                if selectedTab == tab {
+                                    Rectangle()
+                                        .fill(themeManager.currentTheme.color)
+                                        .frame(height: 2)
+                                }
                             }
                         }
-                        .padding()
+                    }
+                }
+                .background(Color(.systemBackground))
+
+                Divider()
+
+                // Tab content
+                Group {
+                    switch selectedTab {
+                    case .outfits:
+                        outfitsGrid
+                    case .calendar:
+                        OutfitCalendarView(viewModel: viewModel, closetItems: closetViewModel.items)
+                    case .collections:
+                        CollectionsView(viewModel: viewModel, closetItems: closetViewModel.items)
                     }
                 }
             }
             .navigationTitle("Outfits")
             .toolbar {
                 ToolbarItem(placement: .navigationBarTrailing) {
-                    Button {
-                        showingBuilderPicker = true
-                    } label: {
+                    Button { showingBuilderPicker = true } label: {
                         Image(systemName: "plus.circle.fill")
                             .foregroundColor(themeManager.currentTheme.color)
                             .font(.title3)
                     }
                 }
             }
-            // Hidden navigation links triggered by sheet selection
             .background(
                 Group {
                     NavigationLink(destination: SwipeBuilderView(), isActive: $navigateToSwipe) { EmptyView() }
@@ -57,7 +98,28 @@ struct OutfitsView: View {
             }
             .onAppear {
                 viewModel.loadOutfits()
+                viewModel.loadCollections()
                 closetViewModel.loadItems()
+            }
+        }
+    }
+
+    private var outfitsGrid: some View {
+        Group {
+            if viewModel.isLoading {
+                CGLoadingView(message: "Loading your outfits...")
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+            } else if viewModel.outfits.isEmpty {
+                emptyState
+            } else {
+                ScrollView {
+                    LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 15) {
+                        ForEach(viewModel.outfits) { outfit in
+                            OutfitCard(outfit: outfit, viewModel: viewModel, closetItems: closetViewModel.items)
+                        }
+                    }
+                    .padding()
+                }
             }
         }
     }
