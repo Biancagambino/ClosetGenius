@@ -2,8 +2,6 @@
 //  OutfitsView.swift
 //  ClosetGenius
 //
-//  Created by Bianca Gambino on 1/14/26.
-//
 
 import SwiftUI
 
@@ -11,31 +9,15 @@ struct OutfitsView: View {
     @StateObject private var viewModel = OutfitViewModel()
     @StateObject private var closetViewModel = ClosetViewModel()
     @EnvironmentObject var themeManager: ThemeManager
+    @State private var showingBuilderPicker = false
+    @State private var navigateToSwipe = false
+    @State private var navigateToFit = false
 
     var body: some View {
         NavigationView {
-            VStack {
+            Group {
                 if viewModel.outfits.isEmpty {
-                    VStack(spacing: 20) {
-                        Image(systemName: "rectangle.3.group")
-                            .font(.system(size: 60))
-                            .foregroundColor(.gray)
-                        Text("No outfits yet")
-                            .font(.headline)
-                        Text("Create your first outfit from your closet items!")
-                            .foregroundColor(.gray)
-                            .multilineTextAlignment(.center)
-                            .padding()
-
-                        NavigationLink(destination: OutfitBuilderView()) {
-                            Text("Create Outfit")
-                                .foregroundColor(.white)
-                                .padding(.horizontal, 20)
-                                .padding(.vertical, 10)
-                                .background(themeManager.currentTheme.color)
-                                .cornerRadius(20)
-                        }
-                    }
+                    emptyState
                 } else {
                     ScrollView {
                         LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 15) {
@@ -50,11 +32,28 @@ struct OutfitsView: View {
             .navigationTitle("Outfits")
             .toolbar {
                 ToolbarItem(placement: .navigationBarTrailing) {
-                    NavigationLink(destination: OutfitBuilderView()) {
+                    Button {
+                        showingBuilderPicker = true
+                    } label: {
                         Image(systemName: "plus.circle.fill")
                             .foregroundColor(themeManager.currentTheme.color)
+                            .font(.title3)
                     }
                 }
+            }
+            // Hidden navigation links triggered by sheet selection
+            .background(
+                Group {
+                    NavigationLink(destination: SwipeBuilderView(), isActive: $navigateToSwipe) { EmptyView() }
+                    NavigationLink(destination: FitBuilderView(), isActive: $navigateToFit) { EmptyView() }
+                }
+            )
+            .confirmationDialog("Create Outfit", isPresented: $showingBuilderPicker, titleVisibility: .visible) {
+                Button("Mix & Match") { navigateToSwipe = true }
+                Button("Fit Builder") { navigateToFit = true }
+                Button("Cancel", role: .cancel) { }
+            } message: {
+                Text("Choose how you want to build your outfit")
             }
             .onAppear {
                 viewModel.loadOutfits()
@@ -62,7 +61,90 @@ struct OutfitsView: View {
             }
         }
     }
+
+    private var emptyState: some View {
+        VStack(spacing: 24) {
+            Spacer()
+            ZStack {
+                Circle()
+                    .fill(themeManager.currentTheme.color.opacity(0.08))
+                    .frame(width: 120, height: 120)
+                Image(systemName: "rectangle.3.group")
+                    .font(.system(size: 44))
+                    .foregroundColor(themeManager.currentTheme.color.opacity(0.5))
+            }
+            VStack(spacing: 6) {
+                Text("No outfits yet")
+                    .font(.title3)
+                    .fontWeight(.semibold)
+                Text("Create your first outfit two ways:")
+                    .font(.subheadline)
+                    .foregroundColor(.secondary)
+            }
+
+            VStack(spacing: 12) {
+                NavigationLink(destination: SwipeBuilderView()) {
+                    HStack(spacing: 12) {
+                        Image(systemName: "hand.draw.fill")
+                            .font(.title3)
+                            .foregroundColor(themeManager.currentTheme.color)
+                            .frame(width: 44, height: 44)
+                            .background(themeManager.currentTheme.color.opacity(0.1))
+                            .clipShape(Circle())
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text("Mix & Match")
+                                .font(.headline)
+                                .foregroundColor(.primary)
+                            Text("Swipe rows to combine items")
+                                .font(.caption)
+                                .foregroundColor(.secondary)
+                        }
+                        Spacer()
+                        Image(systemName: "chevron.right")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                    }
+                    .padding()
+                    .background(Color(.systemBackground))
+                    .cornerRadius(14)
+                    .shadow(color: .black.opacity(0.05), radius: 6, x: 0, y: 3)
+                }
+
+                NavigationLink(destination: FitBuilderView()) {
+                    HStack(spacing: 12) {
+                        Image(systemName: "figure.stand")
+                            .font(.title3)
+                            .foregroundColor(themeManager.currentTheme.color)
+                            .frame(width: 44, height: 44)
+                            .background(themeManager.currentTheme.color.opacity(0.1))
+                            .clipShape(Circle())
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text("Fit Builder")
+                                .font(.headline)
+                                .foregroundColor(.primary)
+                            Text("Assign items to body zones")
+                                .font(.caption)
+                                .foregroundColor(.secondary)
+                        }
+                        Spacer()
+                        Image(systemName: "chevron.right")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                    }
+                    .padding()
+                    .background(Color(.systemBackground))
+                    .cornerRadius(14)
+                    .shadow(color: .black.opacity(0.05), radius: 6, x: 0, y: 3)
+                }
+            }
+            .padding(.horizontal, 24)
+
+            Spacer()
+        }
+    }
 }
+
+// MARK: - Outfit Card
 
 struct OutfitCard: View {
     let outfit: Outfit
@@ -76,77 +158,67 @@ struct OutfitCard: View {
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            // 2x2 grid of item images (up to 4)
+        VStack(alignment: .leading, spacing: 0) {
+            // Image grid
             let pieces = Array(outfitPieces.prefix(4))
             ZStack {
-                RoundedRectangle(cornerRadius: 10)
+                RoundedRectangle(cornerRadius: 12)
                     .fill(themeManager.currentTheme.lightBackground)
-                    .frame(height: 150)
+                    .frame(height: 160)
 
                 if pieces.isEmpty {
                     Image(systemName: "rectangle.3.group.fill")
                         .font(.largeTitle)
-                        .foregroundColor(themeManager.currentTheme.color.opacity(0.4))
+                        .foregroundColor(themeManager.currentTheme.color.opacity(0.3))
+                } else if pieces.count == 1 {
+                    singleImage(pieces[0])
                 } else {
                     LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 2) {
                         ForEach(pieces) { item in
-                            if let urlString = item.imageURL, let url = URL(string: urlString) {
-                                AsyncImage(url: url) { phase in
-                                    switch phase {
-                                    case .success(let img):
-                                        img.resizable().scaledToFill()
-                                    default:
-                                        Color(themeManager.currentTheme.lightBackground)
-                                    }
-                                }
-                                .frame(height: pieces.count <= 2 ? 148 : 72)
-                                .clipped()
-                            } else {
-                                Color(themeManager.currentTheme.lightBackground)
-                                    .frame(height: pieces.count <= 2 ? 148 : 72)
-                            }
+                            itemThumbnail(item, height: pieces.count <= 2 ? 158 : 76)
                         }
                     }
-                    .frame(height: 150)
-                    .clipShape(RoundedRectangle(cornerRadius: 10))
+                    .frame(height: 160)
+                    .clipShape(RoundedRectangle(cornerRadius: 12))
                 }
             }
-            .frame(height: 150)
-            
+            .frame(height: 160)
+
+            // Info
             VStack(alignment: .leading, spacing: 4) {
                 Text(outfit.name)
                     .font(.subheadline)
                     .fontWeight(.semibold)
                     .lineLimit(1)
-                
+
                 if !outfit.occasion.isEmpty {
                     Text(outfit.occasion)
                         .font(.caption)
-                        .foregroundColor(.gray)
-                }
-                
-                HStack {
-                    Text("Worn \(outfit.wearCount)x")
-                        .font(.caption2)
                         .foregroundColor(themeManager.currentTheme.color)
-                    
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 2)
+                        .background(themeManager.currentTheme.color.opacity(0.1))
+                        .cornerRadius(6)
+                }
+
+                HStack {
+                    Label("\(outfit.wearCount)x", systemImage: "checkmark.circle.fill")
+                        .font(.caption2)
+                        .foregroundColor(.secondary)
                     Spacer()
-                    
-                    Button(action: {
+                    Button {
                         viewModel.incrementWearCount(for: outfit)
-                    }) {
+                    } label: {
                         Image(systemName: "plus.circle.fill")
-                            .font(.caption)
                             .foregroundColor(themeManager.currentTheme.color)
                     }
                 }
             }
+            .padding(10)
         }
-        .padding(10)
         .background(Color(.systemBackground))
-        .cornerRadius(10)
-        .shadow(radius: 2)
+        .cornerRadius(14)
+        .shadow(color: .black.opacity(0.07), radius: 6, x: 0, y: 3)
         .contextMenu {
             Button(role: .destructive) {
                 showingDeleteConfirmation = true
@@ -156,11 +228,43 @@ struct OutfitCard: View {
         }
         .alert("Delete Outfit?", isPresented: $showingDeleteConfirmation) {
             Button("Cancel", role: .cancel) { }
-            Button("Delete", role: .destructive) {
-                viewModel.deleteOutfit(outfit)
-            }
+            Button("Delete", role: .destructive) { viewModel.deleteOutfit(outfit) }
         } message: {
             Text("This action cannot be undone.")
+        }
+    }
+
+    @ViewBuilder
+    private func singleImage(_ item: ClothingItem) -> some View {
+        if let urlString = item.imageURL, let url = URL(string: urlString) {
+            AsyncImage(url: url) { phase in
+                if case .success(let img) = phase {
+                    img.resizable().scaledToFill()
+                } else {
+                    Color(themeManager.currentTheme.lightBackground)
+                }
+            }
+            .frame(height: 160)
+            .clipped()
+            .clipShape(RoundedRectangle(cornerRadius: 12))
+        }
+    }
+
+    @ViewBuilder
+    private func itemThumbnail(_ item: ClothingItem, height: CGFloat) -> some View {
+        if let urlString = item.imageURL, let url = URL(string: urlString) {
+            AsyncImage(url: url) { phase in
+                if case .success(let img) = phase {
+                    img.resizable().scaledToFill()
+                } else {
+                    Color(themeManager.currentTheme.lightBackground)
+                }
+            }
+            .frame(height: height)
+            .clipped()
+        } else {
+            Color(themeManager.currentTheme.lightBackground)
+                .frame(height: height)
         }
     }
 }

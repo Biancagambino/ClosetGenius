@@ -2,8 +2,6 @@
 //  ClosetView.swift
 //  ClosetGenius
 //
-//  Created by Bianca Gambino on 1/14/26.
-//
 
 import SwiftUI
 
@@ -13,7 +11,10 @@ struct ClosetView: View {
     @State private var selectedFilter: ClothingItem.ClothingCategory? = nil
     @State private var searchText = ""
     @State private var selectedItem: ClothingItem? = nil
+    @State private var viewStyle: ViewStyle = .grid
     @EnvironmentObject var themeManager: ThemeManager
+
+    enum ViewStyle { case grid, rail }
 
     var filteredItems: [ClothingItem] {
         var result = viewModel.items
@@ -33,67 +34,47 @@ struct ClosetView: View {
     var body: some View {
         NavigationView {
             VStack(spacing: 0) {
-                // Search bar
+
+                // ── Search bar ───────────────────────────────────────────
                 HStack(spacing: 10) {
-                    Image(systemName: "magnifyingglass")
-                        .foregroundColor(.secondary)
-                    TextField("Search your closet...", text: $searchText)
-                        .autocorrectionDisabled()
+                    Image(systemName: "magnifyingglass").foregroundColor(.secondary)
+                    TextField("Search your closet...", text: $searchText).autocorrectionDisabled()
+                    if !searchText.isEmpty {
+                        Button { searchText = "" } label: {
+                            Image(systemName: "xmark.circle.fill").foregroundColor(.secondary)
+                        }
+                    }
                 }
                 .padding(10)
                 .background(Color(.systemGray6))
                 .cornerRadius(12)
-                .padding(.horizontal)
+                .padding(.horizontal, 16)
                 .padding(.top, 8)
-                .padding(.bottom, 4)
+                .padding(.bottom, 6)
 
-                // Filter bar
+                // ── Category tab rail ────────────────────────────────────
                 if !viewModel.items.isEmpty {
-                    ScrollView(.horizontal, showsIndicators: false) {
-                        HStack(spacing: 8) {
-                            FilterButton(title: "All", isSelected: selectedFilter == nil) {
-                                selectedFilter = nil
-                            }
-                            ForEach(ClothingItem.ClothingCategory.allCases, id: \.self) { category in
-                                FilterButton(
-                                    title: category.rawValue.capitalized,
-                                    isSelected: selectedFilter == category
-                                ) {
-                                    selectedFilter = category
-                                }
-                            }
-                        }
-                        .padding(.horizontal)
-                        .padding(.vertical, 8)
-                    }
+                    categoryRail
                     Divider()
                 }
 
+                // ── Content ──────────────────────────────────────────────
                 if viewModel.isLoading {
                     Spacer()
                     ProgressView("Loading your closet...")
-                        .foregroundColor(.secondary)
                     Spacer()
                 } else if viewModel.items.isEmpty {
                     emptyState
                 } else if filteredItems.isEmpty {
-                    VStack(spacing: 12) {
-                        Spacer()
-                        Image(systemName: "magnifyingglass")
-                            .font(.system(size: 40))
-                            .foregroundColor(.secondary)
-                        Text("No items match \"\(searchText)\"")
-                            .font(.headline)
-                        Text("Try a different search or filter")
-                            .font(.subheadline)
-                            .foregroundColor(.secondary)
-                        Spacer()
-                    }
+                    noResultsState
                 } else {
+                    // Hanging rod decoration
+                    hangingRod
+
                     ScrollView {
                         LazyVGrid(
-                            columns: [GridItem(.flexible()), GridItem(.flexible())],
-                            spacing: 14
+                            columns: [GridItem(.flexible()), GridItem(.flexible()), GridItem(.flexible())],
+                            spacing: 12
                         ) {
                             ForEach(filteredItems) { item in
                                 ClosetItemCard(item: item, viewModel: viewModel)
@@ -107,7 +88,9 @@ struct ClosetView: View {
                                     }
                             }
                         }
-                        .padding(14)
+                        .padding(.horizontal, 12)
+                        .padding(.top, 4)
+                        .padding(.bottom, 20)
                     }
                 }
             }
@@ -115,13 +98,13 @@ struct ClosetView: View {
             .toolbar {
                 ToolbarItem(placement: .navigationBarTrailing) {
                     Button(action: { showingScanner = true }) {
-                        Image(systemName: "camera.fill")
+                        Label("Scan", systemImage: "camera.fill")
                             .foregroundColor(themeManager.currentTheme.color)
                     }
                 }
                 ToolbarItem(placement: .navigationBarLeading) {
                     if !viewModel.items.isEmpty {
-                        Text("\(viewModel.items.count) items")
+                        Text("\(filteredItems.count) items")
                             .font(.caption)
                             .foregroundColor(.secondary)
                     }
@@ -134,68 +117,190 @@ struct ClosetView: View {
                 ItemDetailView(item: item, viewModel: viewModel)
                     .environmentObject(themeManager)
             }
-            .onAppear {
-                viewModel.loadItems()
-            }
+            .onAppear { viewModel.loadItems() }
         }
     }
 
+    // MARK: - Hanging rod
+
+    private var hangingRod: some View {
+        ZStack(alignment: .top) {
+            // Rod bar
+            Rectangle()
+                .fill(
+                    LinearGradient(
+                        colors: [Color(.systemGray3), Color(.systemGray4), Color(.systemGray3)],
+                        startPoint: .leading,
+                        endPoint: .trailing
+                    )
+                )
+                .frame(height: 6)
+                .cornerRadius(3)
+                .padding(.horizontal, 8)
+                .padding(.top, 6)
+
+            // Hangers
+            HStack(spacing: 0) {
+                ForEach(0..<min(filteredItems.count, 9), id: \.self) { i in
+                    Spacer()
+                    HangerShape()
+                        .stroke(Color(.systemGray3), lineWidth: 1.5)
+                        .frame(width: 18, height: 20)
+                    Spacer()
+                }
+            }
+            .padding(.horizontal, 12)
+            .padding(.top, 0)
+        }
+        .frame(height: 30)
+        .padding(.bottom, 2)
+    }
+
+    // MARK: - Category rail
+
+    private var categoryRail: some View {
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: 0) {
+                CategoryTab(title: "All", emoji: "✨", isSelected: selectedFilter == nil) {
+                    withAnimation { selectedFilter = nil }
+                }
+                ForEach(ClothingItem.ClothingCategory.allCases, id: \.self) { cat in
+                    CategoryTab(
+                        title: cat.rawValue.capitalized,
+                        emoji: categoryEmoji(cat),
+                        isSelected: selectedFilter == cat
+                    ) {
+                        withAnimation { selectedFilter = cat }
+                    }
+                }
+            }
+            .padding(.horizontal, 12)
+            .padding(.vertical, 8)
+        }
+    }
+
+    private func categoryEmoji(_ cat: ClothingItem.ClothingCategory) -> String {
+        switch cat {
+        case .tops:       return "👕"
+        case .bottoms:    return "👖"
+        case .outerwear:  return "🧥"
+        case .dresses:    return "👗"
+        case .shoes:      return "👟"
+        case .accessories: return "👜"
+        }
+    }
+
+    // MARK: - Empty / no results
+
     private var emptyState: some View {
-        VStack(spacing: 16) {
+        VStack(spacing: 20) {
             Spacer()
             ZStack {
-                Circle()
-                    .fill(themeManager.currentTheme.color.opacity(0.1))
-                    .frame(width: 110, height: 110)
+                RoundedRectangle(cornerRadius: 24)
+                    .fill(themeManager.currentTheme.color.opacity(0.07))
+                    .frame(width: 130, height: 130)
                 Image(systemName: "tshirt")
-                    .font(.system(size: 48))
-                    .foregroundColor(themeManager.currentTheme.color.opacity(0.6))
+                    .font(.system(size: 52))
+                    .foregroundColor(themeManager.currentTheme.color.opacity(0.5))
             }
             Text("Your closet is empty")
-                .font(.title3)
-                .fontWeight(.semibold)
-            Text("Tap the camera to scan your first item")
-                .font(.subheadline)
-                .foregroundColor(.gray)
+                .font(.title3).fontWeight(.semibold)
+            Text("Scan your first item to get started")
+                .font(.subheadline).foregroundColor(.gray)
                 .multilineTextAlignment(.center)
-
             Button {
                 showingScanner = true
             } label: {
                 Label("Scan Item", systemImage: "camera.fill")
-                    .font(.headline)
-                    .foregroundColor(.white)
-                    .padding(.horizontal, 28)
-                    .padding(.vertical, 14)
-                    .background(themeManager.currentTheme.color)
+                    .font(.headline).foregroundColor(.white)
+                    .padding(.horizontal, 28).padding(.vertical, 14)
+                    .background(themeManager.currentTheme.gradient)
                     .cornerRadius(14)
             }
-            .padding(.top, 8)
             Spacer()
         }
         .padding()
     }
+
+    private var noResultsState: some View {
+        VStack(spacing: 12) {
+            Spacer()
+            Image(systemName: "magnifyingglass")
+                .font(.system(size: 40)).foregroundColor(.secondary)
+            Text("No matches").font(.headline)
+            Text("Try adjusting your search or filter")
+                .font(.subheadline).foregroundColor(.secondary)
+            Spacer()
+        }
+    }
 }
 
-struct FilterButton: View {
+// MARK: - Hanger Shape
+
+struct HangerShape: Shape {
+    func path(in rect: CGRect) -> Path {
+        var p = Path()
+        let midX = rect.midX
+        // Hook top
+        p.move(to: CGPoint(x: midX, y: 0))
+        p.addLine(to: CGPoint(x: midX, y: rect.height * 0.35))
+        // Shoulders
+        p.move(to: CGPoint(x: midX, y: rect.height * 0.35))
+        p.addCurve(
+            to: CGPoint(x: rect.maxX, y: rect.maxY),
+            control1: CGPoint(x: midX + rect.width * 0.1, y: rect.height * 0.35),
+            control2: CGPoint(x: rect.maxX, y: rect.height * 0.6)
+        )
+        p.move(to: CGPoint(x: midX, y: rect.height * 0.35))
+        p.addCurve(
+            to: CGPoint(x: rect.minX, y: rect.maxY),
+            control1: CGPoint(x: midX - rect.width * 0.1, y: rect.height * 0.35),
+            control2: CGPoint(x: rect.minX, y: rect.height * 0.6)
+        )
+        // Bar
+        p.move(to: CGPoint(x: rect.minX, y: rect.maxY))
+        p.addLine(to: CGPoint(x: rect.maxX, y: rect.maxY))
+        return p
+    }
+}
+
+// MARK: - Category Tab
+
+struct CategoryTab: View {
     let title: String
+    let emoji: String
     let isSelected: Bool
     let action: () -> Void
     @EnvironmentObject var themeManager: ThemeManager
 
     var body: some View {
         Button(action: action) {
-            Text(title)
-                .font(.subheadline)
-                .fontWeight(isSelected ? .semibold : .regular)
-                .foregroundColor(isSelected ? .white : themeManager.currentTheme.color)
-                .padding(.horizontal, 16)
-                .padding(.vertical, 8)
-                .background(isSelected ? themeManager.currentTheme.color : Color.gray.opacity(0.1))
-                .cornerRadius(20)
+            VStack(spacing: 4) {
+                Text(emoji).font(.title3)
+                Text(title)
+                    .font(.caption2)
+                    .fontWeight(isSelected ? .semibold : .regular)
+                    .foregroundColor(isSelected ? themeManager.currentTheme.color : .secondary)
+            }
+            .padding(.horizontal, 12)
+            .padding(.vertical, 6)
+            .background(
+                isSelected
+                ? themeManager.currentTheme.color.opacity(0.1)
+                : Color.clear
+            )
+            .cornerRadius(10)
+            .overlay(
+                isSelected
+                ? RoundedRectangle(cornerRadius: 10)
+                    .stroke(themeManager.currentTheme.color.opacity(0.3), lineWidth: 1)
+                : nil
+            )
         }
     }
 }
+
+// MARK: - Closet Item Card
 
 struct ClosetItemCard: View {
     let item: ClothingItem
@@ -209,69 +314,63 @@ struct ClosetItemCard: View {
                     AsyncImage(url: url) { phase in
                         switch phase {
                         case .empty:
-                            imagePlaceholder.overlay(ProgressView())
+                            imagePlaceholder.overlay(ProgressView().scaleEffect(0.7))
                         case .success(let image):
-                            image
-                                .resizable()
-                                .scaledToFill()
-                                .frame(height: 160)
-                                .clipped()
+                            image.resizable().scaledToFill()
+                                .frame(height: 120).clipped()
                         default:
                             imagePlaceholder
                         }
                     }
-                    .frame(height: 160)
+                    .frame(height: 120)
                 } else {
                     imagePlaceholder
                 }
 
+                // Color dot
                 Circle()
                     .fill(colorSwatch(for: item.color))
-                    .frame(width: 14, height: 14)
+                    .frame(width: 12, height: 12)
                     .overlay(Circle().stroke(Color.white, lineWidth: 1.5))
-                    .padding(8)
+                    .padding(6)
             }
 
-            VStack(alignment: .leading, spacing: 4) {
+            VStack(alignment: .leading, spacing: 2) {
                 Text(item.name)
-                    .font(.subheadline)
+                    .font(.caption)
                     .fontWeight(.semibold)
                     .lineLimit(1)
 
-                Text(item.category.rawValue.capitalized)
-                    .font(.caption)
-                    .foregroundColor(.secondary)
-
                 HStack {
-                    Text("Worn \(item.wearCount)×")
+                    Text(item.category.rawValue.capitalized)
                         .font(.caption2)
-                        .foregroundColor(themeManager.currentTheme.color)
-                        .fontWeight(.medium)
+                        .foregroundColor(.secondary)
                     Spacer()
                     Button {
                         viewModel.incrementWearCount(for: item)
                     } label: {
                         Image(systemName: "plus.circle.fill")
                             .foregroundColor(themeManager.currentTheme.color)
-                            .font(.system(size: 18))
+                            .font(.system(size: 14))
                     }
                 }
             }
-            .padding(10)
+            .padding(.horizontal, 7)
+            .padding(.vertical, 5)
         }
         .background(Color(.systemBackground))
-        .cornerRadius(14)
-        .shadow(color: .black.opacity(0.07), radius: 6, x: 0, y: 3)
+        .cornerRadius(12)
+        .shadow(color: .black.opacity(0.06), radius: 5, x: 0, y: 2)
     }
 
     private var imagePlaceholder: some View {
         Rectangle()
-            .fill(themeManager.currentTheme.color.opacity(0.08))
-            .frame(height: 160)
+            .fill(themeManager.currentTheme.color.opacity(0.07))
+            .frame(height: 120)
             .overlay(
                 Image(systemName: "tshirt.fill")
-                    .font(.system(size: 36))
-                    .foregroundColor(themeManager.currentTheme.color.opacity(0.3))
+                    .font(.system(size: 28))
+                    .foregroundColor(themeManager.currentTheme.color.opacity(0.25))
             )
     }
 
@@ -293,6 +392,27 @@ struct ClosetItemCard: View {
         case .cream:    return Color(red: 1.0, green: 0.96, blue: 0.87)
         case .burgundy: return Color(red: 0.5, green: 0.0, blue: 0.13)
         case .teal:     return .teal
+        }
+    }
+}
+
+// MARK: - FilterButton (kept for backward compat)
+
+struct FilterButton: View {
+    let title: String
+    let isSelected: Bool
+    let action: () -> Void
+    @EnvironmentObject var themeManager: ThemeManager
+
+    var body: some View {
+        Button(action: action) {
+            Text(title)
+                .font(.subheadline)
+                .fontWeight(isSelected ? .semibold : .regular)
+                .foregroundColor(isSelected ? .white : themeManager.currentTheme.color)
+                .padding(.horizontal, 16).padding(.vertical, 8)
+                .background(isSelected ? themeManager.currentTheme.color : Color.gray.opacity(0.1))
+                .cornerRadius(20)
         }
     }
 }

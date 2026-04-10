@@ -18,173 +18,88 @@ struct DashboardView: View {
 
     var body: some View {
         NavigationView {
-            ScrollView {
-                VStack(spacing: 20) {
-                    // Welcome header
-                    HStack(spacing: 14) {
-                        ProfilePictureView(
-                            imageURL: authViewModel.currentUser?.profileImageURL,
-                            displayName: authViewModel.currentUser?.displayName ?? "User",
-                            size: 52
-                        )
+            ScrollView(showsIndicators: false) {
+                VStack(spacing: 0) {
 
-                        VStack(alignment: .leading, spacing: 2) {
-                            Text("Good \(timeOfDayGreeting()),")
-                                .font(.subheadline)
-                                .foregroundColor(.secondary)
-                            Text(authViewModel.currentUser?.displayName ?? "User")
-                                .font(.title2)
-                                .fontWeight(.bold)
+                    // ── Hero header ──────────────────────────────────────
+                    heroHeader
+                        .padding(.horizontal, 18)
+                        .padding(.top, 16)
+                        .padding(.bottom, 20)
+
+                    // ── Weather + daily prompt (side by side) ────────────
+                    HStack(spacing: 12) {
+                        if let weather = weatherManager.currentWeather {
+                            WeatherWidget(weather: weather, weatherManager: weatherManager)
+                                .frame(maxWidth: .infinity)
+                        } else {
+                            RoundedRectangle(cornerRadius: 16)
+                                .fill(Color(.systemGray6))
+                                .frame(height: 80)
+                                .overlay(
+                                    HStack(spacing: 8) {
+                                        ProgressView().scaleEffect(0.8)
+                                        Text("Weather…").font(.caption).foregroundColor(.secondary)
+                                    }
+                                )
+                                .frame(maxWidth: .infinity)
                         }
 
-                        Spacer()
-
-                        Image(systemName: "bell")
-                            .font(.title3)
-                            .foregroundColor(themeManager.currentTheme.color)
+                        dailyPromptCard
+                            .frame(maxWidth: .infinity)
                     }
-                    .padding(.horizontal)
-                    .padding(.top)
+                    .padding(.horizontal, 18)
+                    .padding(.bottom, 20)
 
-                    // Weather widget
-                    if let weather = weatherManager.currentWeather {
-                        WeatherWidget(weather: weather, weatherManager: weatherManager)
-                            .padding(.horizontal)
-                    } else if weatherManager.isLoading {
-                        HStack(spacing: 8) {
-                            ProgressView()
-                            Text("Loading weather...")
-                                .font(.subheadline)
-                                .foregroundColor(.secondary)
-                        }
-                        .padding()
-                    }
+                    // ── Quick actions ────────────────────────────────────
+                    VStack(alignment: .leading, spacing: 12) {
+                        SectionHeader(title: "Quick Actions")
+                            .padding(.horizontal, 18)
 
-                    // Daily outfit prompt banner
-                    Button(action: { showingDailyPrompt = true }) {
-                        HStack {
-                            VStack(alignment: .leading, spacing: 4) {
-                                HStack(spacing: 6) {
-                                    Image(systemName: "bell.badge.fill")
-                                        .foregroundColor(.white)
-                                    Text("Daily Outfit")
-                                        .font(.headline)
-                                        .foregroundColor(.white)
+                        ScrollView(.horizontal, showsIndicators: false) {
+                            HStack(spacing: 12) {
+                                NavigationLink(destination: ClosetView()) {
+                                    QuickActionTile(icon: "camera.viewfinder", label: "Scan", color: .blue)
                                 }
-                                Text("Share what you're wearing today!")
-                                    .font(.caption)
-                                    .foregroundColor(.white.opacity(0.88))
+                                NavigationLink(destination: SwipeBuilderView()) {
+                                    QuickActionTile(icon: "hand.draw.fill", label: "Mix & Match", color: themeManager.currentTheme.color)
+                                }
+                                NavigationLink(destination: FitBuilderView()) {
+                                    QuickActionTile(icon: "figure.stand", label: "Fit Builder", color: .orange)
+                                }
+                                NavigationLink(destination: TradingMarketplaceView()) {
+                                    QuickActionTile(icon: "arrow.triangle.2.circlepath", label: "Trade", color: .green)
+                                }
                             }
-                            Spacer()
-                            Image(systemName: "chevron.right")
-                                .foregroundColor(.white.opacity(0.8))
+                            .padding(.horizontal, 18)
                         }
-                        .padding()
-                        .background(themeManager.currentTheme.gradient)
-                        .cornerRadius(16)
-                        .shadow(color: themeManager.currentTheme.color.opacity(0.40), radius: 10, x: 0, y: 5)
                     }
-                    .padding(.horizontal)
+                    .padding(.bottom, 20)
 
-                    // Quick actions
-                    VStack(spacing: 12) {
-                        Text("Quick Actions")
-                            .font(.headline)
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                            .padding(.horizontal)
-
-                        HStack(spacing: 12) {
-                            NavigationLink(destination: ClosetView()) {
-                                QuickActionTile(icon: "camera.fill", label: "Scan Item", color: .blue)
-                            }
-                            NavigationLink(destination: OutfitBuilderView()) {
-                                QuickActionTile(icon: "sparkles", label: "Outfits", color: themeManager.currentTheme.color)
-                            }
-                            NavigationLink(destination: TradingMarketplaceView()) {
-                                QuickActionTile(icon: "arrow.triangle.2.circlepath", label: "Trades", color: .green)
-                            }
-                        }
-                        .padding(.horizontal)
-                    }
-
-                    // Outfit suggestion
-                    VStack(alignment: .leading, spacing: 10) {
+                    // ── AI Outfit suggestion ─────────────────────────────
+                    VStack(alignment: .leading, spacing: 12) {
                         HStack {
-                            Text("Today's Outfit Suggestion")
-                                .font(.headline)
+                            SectionHeader(title: "Today's Suggestion")
                             Spacer()
                             if !isLoadingSuggestion && !closetVM.items.isEmpty {
-                                Button {
-                                    fetchOutfitSuggestion()
-                                } label: {
+                                Button { fetchOutfitSuggestion() } label: {
                                     Image(systemName: "arrow.clockwise")
-                                        .font(.caption)
+                                        .font(.subheadline)
                                         .foregroundColor(themeManager.currentTheme.color)
                                 }
                             }
                         }
-                        .padding(.horizontal)
+                        .padding(.horizontal, 18)
 
-                        ZStack {
-                            RoundedRectangle(cornerRadius: 16)
-                                .fill(
-                                    LinearGradient(
-                                        colors: [
-                                            themeManager.currentTheme.color.opacity(0.08),
-                                            themeManager.currentTheme.color.opacity(0.03)
-                                        ],
-                                        startPoint: .topLeading,
-                                        endPoint: .bottomTrailing
-                                    )
-                                )
-
-                            if isLoadingSuggestion {
-                                VStack(spacing: 10) {
-                                    ProgressView()
-                                        .tint(themeManager.currentTheme.color)
-                                    Text("Styling your outfit...")
-                                        .font(.caption)
-                                        .foregroundColor(.secondary)
-                                }
-                                .padding()
-                            } else if outfitSuggestion.isEmpty {
-                                VStack(spacing: 8) {
-                                    Image(systemName: "sparkles")
-                                        .font(.system(size: 28))
-                                        .foregroundColor(themeManager.currentTheme.color.opacity(0.5))
-                                    Text(closetVM.items.isEmpty ? "Add items to your closet first!" : "Tap refresh for a suggestion")
-                                        .font(.subheadline)
-                                        .foregroundColor(.secondary)
-                                        .multilineTextAlignment(.center)
-                                }
-                                .padding()
-                            } else {
-                                VStack(alignment: .leading, spacing: 8) {
-                                    HStack(spacing: 6) {
-                                        Image(systemName: "sparkles")
-                                            .font(.caption)
-                                            .foregroundColor(themeManager.currentTheme.color)
-                                        Text("AI Stylist")
-                                            .font(.caption)
-                                            .fontWeight(.semibold)
-                                            .foregroundColor(themeManager.currentTheme.color)
-                                    }
-                                    Text(outfitSuggestion)
-                                        .font(.subheadline)
-                                        .foregroundColor(.primary)
-                                        .fixedSize(horizontal: false, vertical: true)
-                                }
-                                .padding()
-                            }
-                        }
-                        .padding(.horizontal)
+                        suggestionCard
+                            .padding(.horizontal, 18)
                     }
+                    .padding(.bottom, 20)
 
-                    // Sustainability stats
-                    VStack(alignment: .leading, spacing: 10) {
-                        Text("Sustainability Impact")
-                            .font(.headline)
-                            .padding(.horizontal)
+                    // ── Sustainability stats ─────────────────────────────
+                    VStack(alignment: .leading, spacing: 12) {
+                        SectionHeader(title: "Your Impact")
+                            .padding(.horizontal, 18)
 
                         HStack(spacing: 12) {
                             SustainabilityCard(
@@ -194,18 +109,24 @@ struct DashboardView: View {
                                 color: .green
                             )
                             SustainabilityCard(
+                                value: "\(closetVM.items.count)",
+                                label: "Items Owned",
+                                icon: "tshirt.fill",
+                                color: themeManager.currentTheme.color
+                            )
+                            SustainabilityCard(
                                 value: "\(authViewModel.currentUser?.tradesMade ?? 0)",
-                                label: "Trades Made",
+                                label: "Trades",
                                 icon: "arrow.triangle.2.circlepath",
                                 color: .blue
                             )
                         }
-                        .padding(.horizontal)
+                        .padding(.horizontal, 18)
                     }
-                    .padding(.bottom, 20)
+                    .padding(.bottom, 30)
                 }
             }
-            .navigationTitle("Dashboard")
+            .navigationBarHidden(true)
             .sheet(isPresented: $showingDailyPrompt) {
                 DailyOutfitPromptView(isPresented: $showingDailyPrompt)
             }
@@ -217,6 +138,114 @@ struct DashboardView: View {
                 if count > 0 && outfitSuggestion.isEmpty && !isLoadingSuggestion {
                     fetchOutfitSuggestion()
                 }
+            }
+        }
+    }
+
+    // MARK: - Hero header
+
+    private var heroHeader: some View {
+        HStack(spacing: 14) {
+            ProfilePictureView(
+                imageURL: authViewModel.currentUser?.profileImageURL,
+                displayName: authViewModel.currentUser?.displayName ?? "User",
+                size: 48
+            )
+
+            VStack(alignment: .leading, spacing: 2) {
+                Text("Good \(timeOfDayGreeting()) ✨")
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+                Text(authViewModel.currentUser?.displayName ?? "User")
+                    .font(.title2)
+                    .fontWeight(.bold)
+            }
+
+            Spacer()
+
+            ZStack {
+                Circle()
+                    .fill(themeManager.currentTheme.color.opacity(0.1))
+                    .frame(width: 40, height: 40)
+                Image(systemName: "bell.fill")
+                    .font(.subheadline)
+                    .foregroundColor(themeManager.currentTheme.color)
+            }
+        }
+    }
+
+    // MARK: - Daily prompt card
+
+    private var dailyPromptCard: some View {
+        Button(action: { showingDailyPrompt = true }) {
+            VStack(alignment: .leading, spacing: 6) {
+                Image(systemName: "camera.on.rectangle.fill")
+                    .font(.title3)
+                    .foregroundColor(.white)
+                Text("Post Today's Fit")
+                    .font(.caption)
+                    .fontWeight(.semibold)
+                    .foregroundColor(.white)
+                Text("Share your look")
+                    .font(.caption2)
+                    .foregroundColor(.white.opacity(0.8))
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(14)
+            .background(themeManager.currentTheme.gradient)
+            .cornerRadius(16)
+            .shadow(color: themeManager.currentTheme.color.opacity(0.35), radius: 8, x: 0, y: 4)
+        }
+        .frame(height: 80)
+    }
+
+    // MARK: - Suggestion card
+
+    private var suggestionCard: some View {
+        ZStack {
+            RoundedRectangle(cornerRadius: 18)
+                .fill(
+                    LinearGradient(
+                        colors: [themeManager.currentTheme.color.opacity(0.10), themeManager.currentTheme.color.opacity(0.04)],
+                        startPoint: .topLeading, endPoint: .bottomTrailing
+                    )
+                )
+                .overlay(
+                    RoundedRectangle(cornerRadius: 18)
+                        .stroke(themeManager.currentTheme.color.opacity(0.15), lineWidth: 1)
+                )
+
+            if isLoadingSuggestion {
+                HStack(spacing: 10) {
+                    ProgressView().tint(themeManager.currentTheme.color)
+                    Text("Styling your outfit…")
+                        .font(.subheadline).foregroundColor(.secondary)
+                }
+                .padding()
+            } else if outfitSuggestion.isEmpty {
+                VStack(spacing: 8) {
+                    Image(systemName: "sparkles")
+                        .font(.system(size: 30))
+                        .foregroundColor(themeManager.currentTheme.color.opacity(0.4))
+                    Text(closetVM.items.isEmpty ? "Add items to your closet first!" : "Tap ↻ to get a suggestion")
+                        .font(.subheadline).foregroundColor(.secondary)
+                        .multilineTextAlignment(.center)
+                }
+                .padding()
+            } else {
+                VStack(alignment: .leading, spacing: 10) {
+                    HStack(spacing: 6) {
+                        Image(systemName: "sparkles")
+                            .font(.caption).foregroundColor(themeManager.currentTheme.color)
+                        Text("Nova's Pick")
+                            .font(.caption).fontWeight(.bold)
+                            .foregroundColor(themeManager.currentTheme.color)
+                    }
+                    Text(outfitSuggestion)
+                        .font(.subheadline).foregroundColor(.primary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                .padding(16)
             }
         }
     }
@@ -256,6 +285,15 @@ struct DashboardView: View {
         case 12..<17: return "afternoon"
         default: return "evening"
         }
+    }
+}
+
+struct SectionHeader: View {
+    let title: String
+    var body: some View {
+        Text(title)
+            .font(.headline)
+            .fontWeight(.bold)
     }
 }
 
@@ -362,20 +400,21 @@ struct SustainabilityCard: View {
     let color: Color
 
     var body: some View {
-        VStack(spacing: 8) {
+        VStack(spacing: 6) {
             Image(systemName: icon)
                 .font(.title3)
                 .foregroundColor(color)
             Text(value)
-                .font(.system(size: 32, weight: .bold))
+                .font(.system(size: 26, weight: .bold))
                 .foregroundColor(color)
             Text(label)
-                .font(.caption)
+                .font(.caption2)
                 .foregroundColor(.secondary)
                 .multilineTextAlignment(.center)
         }
         .frame(maxWidth: .infinity)
-        .padding()
+        .padding(.vertical, 14)
+        .padding(.horizontal, 8)
         .background(color.opacity(0.07))
         .cornerRadius(14)
     }
