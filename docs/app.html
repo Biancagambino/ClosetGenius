@@ -7,6 +7,10 @@
 
   <!-- Firebase -->
   <script type="module">
+    window.onerror = (msg, src, line) => {
+      document.getElementById("authError").textContent = `Error: ${msg}`;
+      document.getElementById("authError").style.color = "#f87171";
+    };
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
     import {
       getAuth, signInWithEmailAndPassword, createUserWithEmailAndPassword,
@@ -67,9 +71,17 @@
       const email = document.getElementById("authEmail").value.trim();
       const pass  = document.getElementById("authPass").value;
       setAuthError("");
+      if (!email || !pass) { setAuthError("Please enter your email and password."); return; }
+      const btn = document.getElementById("login-btn");
+      btn.disabled = true;
+      btn.textContent = "Signing in...";
       try {
         await signInWithEmailAndPassword(auth, email, pass);
-      } catch (e) { setAuthError(e.message); }
+      } catch (e) {
+        setAuthError(e.message);
+        btn.disabled = false;
+        btn.textContent = "Sign In";
+      }
     };
 
     window.doSignup = async () => {
