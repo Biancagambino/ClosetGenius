@@ -1,0 +1,1386 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0" />
+  <title>ClosetGenius</title>
+
+  <!-- Firebase -->
+  <script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
+    import {
+      getAuth, signInWithEmailAndPassword, createUserWithEmailAndPassword,
+      signOut, onAuthStateChanged, sendPasswordResetEmail
+    } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
+    import {
+      getFirestore, collection, doc, getDocs, setDoc, deleteDoc, updateDoc,
+      getDoc, query, orderBy, serverTimestamp
+    } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
+
+    // ── Firebase config (same project as iOS app) ──────────────────────────
+    // NOTE: Add a Web App in Firebase Console → Project Settings → Your apps
+    // to get your web appId, then replace the value below.
+    const firebaseConfig = {
+      apiKey:            "AIzaSyB_sTNZCb_BXlFx98Yun928bLx458bXRAc",
+      authDomain:        "closetgenius-50ec6.firebaseapp.com",
+      projectId:         "closetgenius-50ec6",
+      storageBucket:     "closetgenius-50ec6.firebasestorage.app",
+      messagingSenderId: "948203162422",
+      appId:             "1:948203162422:web:REPLACE_WITH_WEB_APP_ID"
+    };
+
+    const app  = initializeApp(firebaseConfig);
+    const auth = getAuth(app);
+    const db   = getFirestore(app);
+
+    // ── Cloudinary ──────────────────────────────────────────────────────────
+    const CLOUD_NAME    = "duogssptl";
+    const UPLOAD_PRESET = "originals";
+    const CLOUD_URL     = `https://api.cloudinary.com/v1_1/${CLOUD_NAME}/image/upload`;
+
+    // ── AI Backend ──────────────────────────────────────────────────────────
+    const AI_BASE = "https://closetgenius-api-22315601029.us-central1.run.app";
+
+    // ── State ───────────────────────────────────────────────────────────────
+    let currentUser   = null;
+    let closetItems   = [];
+    let chatHistory   = [];
+    let activeTab     = "dashboard";
+
+    // ══════════════════════════════════════════════════════════════
+    // AUTH
+    // ══════════════════════════════════════════════════════════════
+    onAuthStateChanged(auth, async user => {
+      if (user) {
+        currentUser = user;
+        const snap = await getDoc(doc(db, "users", user.uid));
+        if (snap.exists()) currentUser._profile = snap.data();
+        showApp();
+        loadCloset();
+      } else {
+        currentUser = null;
+        showAuth();
+      }
+    });
+
+    window.doLogin = async () => {
+      const email = document.getElementById("authEmail").value.trim();
+      const pass  = document.getElementById("authPass").value;
+      setAuthError("");
+      try {
+        await signInWithEmailAndPassword(auth, email, pass);
+      } catch (e) { setAuthError(e.message); }
+    };
+
+    window.doSignup = async () => {
+      const email = document.getElementById("authEmail").value.trim();
+      const pass  = document.getElementById("authPass").value;
+      const name  = document.getElementById("authName").value.trim();
+      setAuthError("");
+      if (!name) { setAuthError("Please enter your name."); return; }
+      try {
+        const cred = await createUserWithEmailAndPassword(auth, email, pass);
+        const uid  = cred.user.uid;
+        const profile = {
+          email, displayName: name, closetItemCount: 0,
+          sustainabilityScore: 0, friendIDs: [], blockedUserIDs: [],
+          customSubcategories: [], newItemsPurchased: 0,
+          itemsReworn: 0, tradesMade: 0, closetVisibility: "public"
+        };
+        await setDoc(doc(db, "users", uid), profile);
+        currentUser._profile = profile;
+      } catch (e) { setAuthError(e.message); }
+    };
+
+    window.doReset = async () => {
+      const email = document.getElementById("authEmail").value.trim();
+      if (!email) { setAuthError("Enter your email first."); return; }
+      try {
+        await sendPasswordResetEmail(auth, email);
+        setAuthError("Reset email sent! Check your inbox.", true);
+      } catch (e) { setAuthError(e.message); }
+    };
+
+    window.doSignOut = async () => {
+      await signOut(auth);
+      closetItems = [];
+      chatHistory = [];
+    };
+
+    function setAuthError(msg, success = false) {
+      const el = document.getElementById("authError");
+      el.textContent = msg;
+      el.style.color = success ? "#4ade80" : "#f87171";
+    }
+
+    // ══════════════════════════════════════════════════════════════
+    // CLOSET
+    // ══════════════════════════════════════════════════════════════
+    async function loadCloset() {
+      if (!currentUser) return;
+      showLoading("closet-grid", "Loading your closet...");
+      const snap = await getDocs(collection(db, "users", currentUser.uid, "closet"));
+      closetItems = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+      renderCloset();
+    }
+
+    function renderCloset(filter = "all") {
+      const grid = document.getElementById("closet-grid");
+      let items = filter === "all" ? closetItems : closetItems.filter(i => i.category === filter);
+      if (items.length === 0) {
+        grid.innerHTML = `<div class="empty-state">No items yet. Tap + to add your first piece!</div>`;
+        return;
+      }
+      grid.innerHTML = items.map(item => `
+        <div class="item-card" onclick="openItemDetail('${item.id}')">
+          ${item.imageURL
+            ? `<img src="${item.imageURL}" alt="${item.name}" class="item-img" />`
+            : `<div class="item-img-placeholder">${categoryEmoji(item.category)}</div>`}
+          <div class="item-info">
+            <div class="item-name">${item.name}</div>
+            <div class="item-meta">${capitalize(item.color)} · ${capitalize(item.category)}</div>
+          </div>
+        </div>
+      `).join("");
+      document.getElementById("closet-count").textContent = `${closetItems.length} items`;
+    }
+
+    window.filterCloset = (cat) => {
+      document.querySelectorAll(".filter-btn").forEach(b => b.classList.remove("active"));
+      event.target.classList.add("active");
+      renderCloset(cat);
+    };
+
+    window.openAddItem = () => {
+      document.getElementById("add-item-modal").classList.remove("hidden");
+      document.getElementById("scan-result").classList.add("hidden");
+      document.getElementById("item-form").reset();
+      document.getElementById("preview-img").src = "";
+      document.getElementById("preview-img").classList.add("hidden");
+      document.getElementById("scan-btn").disabled = true;
+      window._uploadedImageURL = null;
+      window._uploadedFile     = null;
+    };
+
+    window.closeAddItem = () => {
+      document.getElementById("add-item-modal").classList.add("hidden");
+    };
+
+    window.handleImagePick = async (e) => {
+      const file = e.target.files[0];
+      if (!file) return;
+      window._uploadedFile = file;
+      const preview = document.getElementById("preview-img");
+      preview.src = URL.createObjectURL(file);
+      preview.classList.remove("hidden");
+      document.getElementById("scan-btn").disabled = false;
+      document.getElementById("upload-status").textContent = "Image ready — tap Scan or fill in details manually.";
+    };
+
+    window.scanItem = async () => {
+      if (!window._uploadedFile) return;
+      const btn = document.getElementById("scan-btn");
+      btn.disabled = true;
+      btn.textContent = "Scanning...";
+      document.getElementById("upload-status").textContent = "Uploading to Cloudinary...";
+
+      try {
+        // 1. Upload to Cloudinary
+        const fd = new FormData();
+        fd.append("file", window._uploadedFile);
+        fd.append("upload_preset", UPLOAD_PRESET);
+        const cldRes = await fetch(CLOUD_URL, { method: "POST", body: fd });
+        const cldData = await cldRes.json();
+        window._uploadedImageURL = cldData.secure_url;
+
+        document.getElementById("upload-status").textContent = "Scanning with AI...";
+
+        // 2. Send to AI /scan
+        const scanFd = new FormData();
+        scanFd.append("image", window._uploadedFile);
+        const aiRes  = await fetch(`${AI_BASE}/scan`, { method: "POST", body: scanFd });
+        const aiData = await aiRes.json();
+
+        // 3. Fill form
+        document.getElementById("item-name").value     = aiData.category ? capitalize(aiData.category) : "";
+        document.getElementById("item-category").value = mapCategory(aiData.category || "");
+        document.getElementById("item-color").value    = mapColor(aiData.color || "");
+        document.getElementById("item-season").value   = mapSeason(aiData.season || "");
+        document.getElementById("item-desc").value     = aiData.description || "";
+
+        const resultDiv = document.getElementById("scan-result");
+        resultDiv.classList.remove("hidden");
+        resultDiv.textContent = `AI detected: ${aiData.category || "?"} · ${aiData.color || "?"} · ${aiData.season || "?"}`;
+
+        document.getElementById("upload-status").textContent = "Scan complete! Review and save.";
+      } catch (err) {
+        document.getElementById("upload-status").textContent = "Scan failed — fill in details manually.";
+        console.error(err);
+      }
+
+      btn.disabled = false;
+      btn.textContent = "Scan with AI";
+    };
+
+    window.saveItem = async () => {
+      const name     = document.getElementById("item-name").value.trim();
+      const category = document.getElementById("item-category").value;
+      const color    = document.getElementById("item-color").value;
+      const season   = document.getElementById("item-season").value;
+      const desc     = document.getElementById("item-desc").value.trim();
+
+      if (!name) { alert("Please enter a name for this item."); return; }
+
+      const saveBtn = document.getElementById("save-item-btn");
+      saveBtn.disabled = true;
+      saveBtn.textContent = "Saving...";
+
+      try {
+        // Upload image if not already uploaded
+        if (window._uploadedFile && !window._uploadedImageURL) {
+          const fd = new FormData();
+          fd.append("file", window._uploadedFile);
+          fd.append("upload_preset", UPLOAD_PRESET);
+          const r = await fetch(CLOUD_URL, { method: "POST", body: fd });
+          const d = await r.json();
+          window._uploadedImageURL = d.secure_url;
+        }
+
+        const itemId = crypto.randomUUID();
+        const item = {
+          id: itemId, name, category, color,
+          pattern: "solid", season,
+          style: "casual", formality: "casual",
+          description: desc, imageURL: window._uploadedImageURL || null,
+          wearCount: 0, dateAdded: new Date().toISOString(),
+          notes: "", customTags: []
+        };
+
+        await setDoc(doc(db, "users", currentUser.uid, "closet", itemId), item);
+        closetItems.push(item);
+
+        await updateDoc(doc(db, "users", currentUser.uid), { closetItemCount: closetItems.length });
+
+        closeAddItem();
+        renderCloset();
+        updateDashboard();
+      } catch (err) {
+        alert("Failed to save item. Try again.");
+        console.error(err);
+      }
+
+      saveBtn.disabled = false;
+      saveBtn.textContent = "Save Item";
+    };
+
+    window.openItemDetail = (id) => {
+      const item = closetItems.find(i => i.id === id);
+      if (!item) return;
+      const modal = document.getElementById("item-detail-modal");
+      document.getElementById("detail-name").textContent    = item.name;
+      document.getElementById("detail-category").textContent = capitalize(item.category);
+      document.getElementById("detail-color").textContent   = capitalize(item.color);
+      document.getElementById("detail-season").textContent  = capitalize(item.season);
+      document.getElementById("detail-wear").textContent    = item.wearCount;
+      document.getElementById("detail-desc").textContent    = item.description || "No description.";
+      const img = document.getElementById("detail-img");
+      if (item.imageURL) { img.src = item.imageURL; img.classList.remove("hidden"); }
+      else img.classList.add("hidden");
+      modal.dataset.itemId = id;
+      modal.classList.remove("hidden");
+    };
+
+    window.closeItemDetail = () => {
+      document.getElementById("item-detail-modal").classList.add("hidden");
+    };
+
+    window.deleteItem = async () => {
+      const id = document.getElementById("item-detail-modal").dataset.itemId;
+      if (!confirm("Delete this item?")) return;
+      await deleteDoc(doc(db, "users", currentUser.uid, "closet", id));
+      closetItems = closetItems.filter(i => i.id !== id);
+      await updateDoc(doc(db, "users", currentUser.uid), { closetItemCount: closetItems.length });
+      closeItemDetail();
+      renderCloset();
+      updateDashboard();
+    };
+
+    window.wearItem = async () => {
+      const id  = document.getElementById("item-detail-modal").dataset.itemId;
+      const idx = closetItems.findIndex(i => i.id === id);
+      if (idx < 0) return;
+      closetItems[idx].wearCount++;
+      await updateDoc(doc(db, "users", currentUser.uid, "closet", id), { wearCount: closetItems[idx].wearCount });
+      document.getElementById("detail-wear").textContent = closetItems[idx].wearCount;
+    };
+
+    // ══════════════════════════════════════════════════════════════
+    // NOVA CHAT
+    // ══════════════════════════════════════════════════════════════
+    window.sendChat = async () => {
+      const input = document.getElementById("chat-input");
+      const msg   = input.value.trim();
+      if (!msg) return;
+      input.value = "";
+
+      appendMessage("user", msg);
+      chatHistory.push({ role: "user", content: msg });
+
+      const typing = appendMessage("nova", "...", true);
+      document.getElementById("send-btn").disabled = true;
+
+      try {
+        const closetPayload = closetItems.slice(0, 25).map(i => ({
+          name: i.name, category: i.category, color: i.color
+        }));
+        const res  = await fetch(`${AI_BASE}/chat`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ message: msg, closet: closetPayload, history: chatHistory.slice(-10) })
+        });
+        const data = await res.json();
+        const reply = data.reply || "Sorry, I couldn't get a response.";
+        typing.textContent = reply;
+        typing.classList.remove("typing");
+        chatHistory.push({ role: "assistant", content: reply });
+      } catch {
+        typing.textContent = "Nova is offline. Check your AI server.";
+        typing.classList.remove("typing");
+      }
+
+      document.getElementById("send-btn").disabled = false;
+    };
+
+    window.handleChatKey = (e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); sendChat(); } };
+
+    function appendMessage(role, text, isTyping = false) {
+      const container = document.getElementById("chat-messages");
+      const div = document.createElement("div");
+      div.className = `chat-msg ${role}${isTyping ? " typing" : ""}`;
+      div.textContent = text;
+      container.appendChild(div);
+      container.scrollTop = container.scrollHeight;
+      return div;
+    }
+
+    // ══════════════════════════════════════════════════════════════
+    // DASHBOARD
+    // ══════════════════════════════════════════════════════════════
+    function updateDashboard() {
+      const profile = currentUser?._profile || {};
+      document.getElementById("dash-name").textContent = profile.displayName || currentUser?.email || "there";
+      document.getElementById("dash-count").textContent = closetItems.length;
+      document.getElementById("dash-recent").innerHTML = closetItems.slice(-4).reverse().map(item => `
+        <div class="mini-card" onclick="openItemDetail('${item.id}')">
+          ${item.imageURL
+            ? `<img src="${item.imageURL}" class="mini-img" />`
+            : `<div class="mini-img-placeholder">${categoryEmoji(item.category)}</div>`}
+          <div class="mini-name">${item.name}</div>
+        </div>
+      `).join("") || `<div class="empty-state-sm">Add items to see them here</div>`;
+    }
+
+    window.getOutfitSuggestion = async () => {
+      const btn = document.getElementById("suggest-btn");
+      const out = document.getElementById("suggestion-output");
+      btn.disabled = true;
+      btn.textContent = "Thinking...";
+      out.textContent = "";
+
+      try {
+        const closetPayload = closetItems.slice(0, 25).map(i => ({ name: i.name, category: i.category, color: i.color }));
+        const res  = await fetch(`${AI_BASE}/chat`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ message: "Suggest a great outfit from my closet for today. Be specific about which items to wear together.", closet: closetPayload, history: [] })
+        });
+        const data = await res.json();
+        out.textContent = data.reply || "No suggestion available.";
+      } catch {
+        out.textContent = "Nova is offline. Start your Colab backend to get suggestions.";
+      }
+
+      btn.disabled = false;
+      btn.textContent = "Get Outfit Suggestion";
+    };
+
+    // ══════════════════════════════════════════════════════════════
+    // PROFILE
+    // ══════════════════════════════════════════════════════════════
+    function updateProfile() {
+      const profile = currentUser?._profile || {};
+      document.getElementById("profile-name").textContent  = profile.displayName || "—";
+      document.getElementById("profile-email").textContent = currentUser?.email || "—";
+      document.getElementById("profile-count").textContent = closetItems.length;
+      const avatar = document.getElementById("profile-avatar");
+      if (profile.profileImageURL) { avatar.src = profile.profileImageURL; avatar.classList.remove("hidden"); }
+    }
+
+    // ══════════════════════════════════════════════════════════════
+    // NAVIGATION
+    // ══════════════════════════════════════════════════════════════
+    window.switchTab = (tab) => {
+      activeTab = tab;
+      document.querySelectorAll(".tab-content").forEach(el => el.classList.add("hidden"));
+      document.querySelectorAll(".nav-item").forEach(el => el.classList.remove("active"));
+      document.getElementById(`tab-${tab}`).classList.remove("hidden");
+      document.getElementById(`nav-${tab}`).classList.add("active");
+      if (tab === "dashboard") updateDashboard();
+      if (tab === "profile")   updateProfile();
+    };
+
+    // ══════════════════════════════════════════════════════════════
+    // AUTH UI TOGGLE
+    // ══════════════════════════════════════════════════════════════
+    window.toggleAuthMode = () => {
+      const nameField = document.getElementById("name-field");
+      const isSignup  = nameField.classList.contains("hidden");
+      nameField.classList.toggle("hidden");
+      document.getElementById("login-btn").classList.toggle("hidden", isSignup);
+      document.getElementById("signup-btn").classList.toggle("hidden", !isSignup);
+      document.getElementById("reset-btn").classList.toggle("hidden", isSignup);
+      document.getElementById("toggle-auth-link").textContent = isSignup
+        ? "Already have an account? Sign in" : "New here? Create account";
+      document.getElementById("auth-title").textContent = isSignup ? "Create Account" : "Sign In";
+      setAuthError("");
+    };
+
+    // ══════════════════════════════════════════════════════════════
+    // SHOW / HIDE SCREENS
+    // ══════════════════════════════════════════════════════════════
+    function showAuth() {
+      document.getElementById("auth-screen").classList.remove("hidden");
+      document.getElementById("app-screen").classList.add("hidden");
+    }
+
+    function showApp() {
+      document.getElementById("auth-screen").classList.add("hidden");
+      document.getElementById("app-screen").classList.remove("hidden");
+      switchTab("dashboard");
+    }
+
+    function showLoading(containerId, msg) {
+      document.getElementById(containerId).innerHTML = `<div class="loading">${msg}</div>`;
+    }
+
+    // ══════════════════════════════════════════════════════════════
+    // HELPERS
+    // ══════════════════════════════════════════════════════════════
+    function capitalize(s) { return s ? s.charAt(0).toUpperCase() + s.slice(1) : ""; }
+
+    function categoryEmoji(cat) {
+      return { tops:"👕", bottoms:"👖", dresses:"👗", outerwear:"🧥", shoes:"👟", accessories:"👜" }[cat] || "👔";
+    }
+
+    function mapCategory(raw) {
+      const s = raw.toLowerCase();
+      if (["dress","gown","romper","jumpsuit"].some(k => s.includes(k))) return "dresses";
+      if (["jacket","coat","blazer","cardigan","parka"].some(k => s.includes(k))) return "outerwear";
+      if (["shoe","boot","sandal","sneaker","heel"].some(k => s.includes(k))) return "shoes";
+      if (["bag","hat","scarf","belt","watch","purse","earring","necklace"].some(k => s.includes(k))) return "accessories";
+      if (["jean","pant","trouser","short","skirt","legging"].some(k => s.includes(k))) return "bottoms";
+      return "tops";
+    }
+
+    function mapColor(raw) {
+      const s = raw.toLowerCase();
+      const map = [
+        ["navy","navy"],["black","black"],["white","white"],["grey","gray"],["gray","gray"],
+        ["burgundy","burgundy"],["teal","teal"],["cream","cream"],["beige","beige"],
+        ["pink","pink"],["purple","purple"],["brown","brown"],["yellow","yellow"],
+        ["orange","orange"],["green","green"],["red","red"],["blue","blue"],
+      ];
+      for (const [k, v] of map) if (s.includes(k)) return v;
+      return "black";
+    }
+
+    function mapSeason(raw) {
+      const s = raw.toLowerCase();
+      if (s.includes("summer")) return "summer";
+      if (s.includes("winter")) return "winter";
+      if (s.includes("spring")) return "spring";
+      if (s.includes("fall") || s.includes("autumn")) return "fall";
+      return "allSeason";
+    }
+  </script>
+
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --purple: #8B2BE2;
+      --purple-dark: #6B1BB2;
+      --bg: #0d0d0d;
+      --surface: #1a1a1a;
+      --surface2: #242424;
+      --border: #2e2e2e;
+      --text: #f0f0f0;
+      --muted: #888;
+      --radius: 14px;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+      overscroll-behavior: none;
+    }
+
+    /* ── Auth ─────────────────────────────────────────────── */
+    #auth-screen {
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 24px;
+    }
+
+    .auth-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 24px;
+      padding: 40px 32px;
+      width: 100%;
+      max-width: 400px;
+      text-align: center;
+    }
+
+    .auth-logo {
+      width: 72px; height: 72px;
+      border-radius: 18px;
+      margin: 0 auto 16px;
+      display: block;
+    }
+
+    .auth-title {
+      font-size: 1.6rem;
+      font-weight: 700;
+      background: linear-gradient(135deg, var(--purple), var(--purple-dark));
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+      margin-bottom: 24px;
+    }
+
+    .auth-input {
+      width: 100%;
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      color: var(--text);
+      font-size: 1rem;
+      padding: 14px 16px;
+      margin-bottom: 12px;
+      outline: none;
+      transition: border-color .2s;
+    }
+
+    .auth-input:focus { border-color: var(--purple); }
+
+    .auth-btn {
+      width: 100%;
+      padding: 14px;
+      border-radius: 50px;
+      border: none;
+      font-size: 1rem;
+      font-weight: 600;
+      cursor: pointer;
+      margin-bottom: 10px;
+      transition: opacity .2s;
+    }
+
+    .auth-btn:hover { opacity: .85; }
+    .auth-btn.primary { background: linear-gradient(135deg, var(--purple), var(--purple-dark)); color: #fff; }
+    .auth-btn.ghost   { background: transparent; border: 1px solid var(--border); color: var(--muted); }
+
+    #authError { font-size: .85rem; min-height: 20px; margin: 6px 0; }
+
+    .toggle-link {
+      font-size: .85rem;
+      color: var(--purple);
+      cursor: pointer;
+      margin-top: 8px;
+      display: block;
+    }
+
+    /* ── App Shell ─────────────────────────────────────────── */
+    #app-screen {
+      display: flex;
+      flex-direction: column;
+      height: 100vh;
+      max-width: 480px;
+      margin: 0 auto;
+      position: relative;
+    }
+
+    .app-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 16px 20px 8px;
+      background: var(--bg);
+      border-bottom: 1px solid var(--border);
+      flex-shrink: 0;
+    }
+
+    .header-logo {
+      height: 32px;
+      border-radius: 8px;
+    }
+
+    .header-title {
+      font-size: 1.1rem;
+      font-weight: 700;
+      background: linear-gradient(135deg, var(--purple), var(--purple-dark));
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
+
+    .tab-content {
+      flex: 1;
+      overflow-y: auto;
+      padding: 20px;
+      padding-bottom: 80px;
+    }
+
+    /* ── Bottom Nav ────────────────────────────────────────── */
+    .bottom-nav {
+      position: fixed;
+      bottom: 0;
+      left: 50%;
+      transform: translateX(-50%);
+      width: 100%;
+      max-width: 480px;
+      background: var(--surface);
+      border-top: 1px solid var(--border);
+      display: flex;
+      z-index: 100;
+    }
+
+    .nav-item {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 10px 0 14px;
+      cursor: pointer;
+      font-size: .7rem;
+      color: var(--muted);
+      transition: color .2s;
+      gap: 3px;
+      border: none;
+      background: none;
+    }
+
+    .nav-item .nav-icon { font-size: 1.4rem; }
+    .nav-item.active { color: var(--purple); }
+
+    /* ── Dashboard ─────────────────────────────────────────── */
+    .greeting {
+      font-size: 1.4rem;
+      font-weight: 700;
+      margin-bottom: 4px;
+    }
+
+    .greeting span {
+      background: linear-gradient(135deg, var(--purple), var(--purple-dark));
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
+
+    .stat-row {
+      display: flex;
+      gap: 12px;
+      margin: 16px 0;
+    }
+
+    .stat-card {
+      flex: 1;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 16px;
+      text-align: center;
+    }
+
+    .stat-num { font-size: 1.8rem; font-weight: 700; color: var(--purple); }
+    .stat-label { font-size: .75rem; color: var(--muted); margin-top: 2px; }
+
+    .section-title {
+      font-size: 1rem;
+      font-weight: 600;
+      margin: 20px 0 12px;
+      color: var(--text);
+    }
+
+    .suggest-btn {
+      width: 100%;
+      padding: 14px;
+      border-radius: 50px;
+      border: none;
+      background: linear-gradient(135deg, var(--purple), var(--purple-dark));
+      color: #fff;
+      font-size: 1rem;
+      font-weight: 600;
+      cursor: pointer;
+      margin-bottom: 12px;
+      transition: opacity .2s;
+    }
+
+    .suggest-btn:hover { opacity: .85; }
+    .suggest-btn:disabled { opacity: .5; }
+
+    #suggestion-output {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 14px;
+      font-size: .9rem;
+      line-height: 1.6;
+      color: var(--muted);
+      min-height: 48px;
+      white-space: pre-wrap;
+    }
+
+    .recent-grid {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 8px;
+    }
+
+    .mini-card {
+      cursor: pointer;
+      text-align: center;
+    }
+
+    .mini-img { width: 100%; aspect-ratio: 1; border-radius: 10px; object-fit: cover; }
+    .mini-img-placeholder {
+      width: 100%; aspect-ratio: 1; border-radius: 10px;
+      background: var(--surface); font-size: 1.6rem;
+      display: flex; align-items: center; justify-content: center;
+    }
+
+    .mini-name { font-size: .65rem; color: var(--muted); margin-top: 4px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+    /* ── Closet ─────────────────────────────────────────────── */
+    .closet-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 12px;
+    }
+
+    .closet-header-left { display: flex; flex-direction: column; gap: 2px; }
+    .closet-title { font-size: 1.2rem; font-weight: 700; }
+    .closet-subtitle { font-size: .8rem; color: var(--muted); }
+
+    .add-btn {
+      width: 42px; height: 42px;
+      border-radius: 50%;
+      border: none;
+      background: linear-gradient(135deg, var(--purple), var(--purple-dark));
+      color: #fff;
+      font-size: 1.4rem;
+      cursor: pointer;
+      display: flex; align-items: center; justify-content: center;
+    }
+
+    .filter-row {
+      display: flex;
+      gap: 8px;
+      overflow-x: auto;
+      padding-bottom: 8px;
+      margin-bottom: 16px;
+      scrollbar-width: none;
+    }
+
+    .filter-row::-webkit-scrollbar { display: none; }
+
+    .filter-btn {
+      flex-shrink: 0;
+      padding: 6px 14px;
+      border-radius: 50px;
+      border: 1px solid var(--border);
+      background: var(--surface);
+      color: var(--muted);
+      font-size: .8rem;
+      cursor: pointer;
+      transition: all .2s;
+      white-space: nowrap;
+    }
+
+    .filter-btn.active {
+      background: linear-gradient(135deg, var(--purple), var(--purple-dark));
+      border-color: transparent;
+      color: #fff;
+    }
+
+    .item-grid {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 12px;
+    }
+
+    .item-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      overflow: hidden;
+      cursor: pointer;
+      transition: transform .15s;
+    }
+
+    .item-card:active { transform: scale(.97); }
+
+    .item-img { width: 100%; aspect-ratio: 1; object-fit: cover; }
+    .item-img-placeholder {
+      width: 100%; aspect-ratio: 1;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 2.5rem;
+      background: var(--surface2);
+    }
+
+    .item-info { padding: 10px; }
+    .item-name { font-size: .9rem; font-weight: 600; margin-bottom: 2px; }
+    .item-meta { font-size: .75rem; color: var(--muted); }
+
+    /* ── Nova Chat ──────────────────────────────────────────── */
+    #tab-nova {
+      display: flex;
+      flex-direction: column;
+      padding: 0;
+      height: calc(100vh - 120px);
+    }
+
+    .nova-header {
+      padding: 16px 20px 12px;
+      border-bottom: 1px solid var(--border);
+      flex-shrink: 0;
+    }
+
+    .nova-title { font-size: 1.2rem; font-weight: 700; }
+    .nova-sub   { font-size: .8rem; color: var(--muted); }
+
+    #chat-messages {
+      flex: 1;
+      overflow-y: auto;
+      padding: 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+
+    .chat-msg {
+      max-width: 80%;
+      padding: 10px 14px;
+      border-radius: 18px;
+      font-size: .9rem;
+      line-height: 1.5;
+      white-space: pre-wrap;
+    }
+
+    .chat-msg.user {
+      align-self: flex-end;
+      background: linear-gradient(135deg, var(--purple), var(--purple-dark));
+      color: #fff;
+      border-bottom-right-radius: 4px;
+    }
+
+    .chat-msg.nova {
+      align-self: flex-start;
+      background: var(--surface2);
+      color: var(--text);
+      border-bottom-left-radius: 4px;
+    }
+
+    .chat-msg.typing { color: var(--muted); }
+
+    .chat-input-row {
+      display: flex;
+      gap: 8px;
+      padding: 12px 16px;
+      border-top: 1px solid var(--border);
+      background: var(--bg);
+      flex-shrink: 0;
+    }
+
+    #chat-input {
+      flex: 1;
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: 22px;
+      color: var(--text);
+      font-size: .9rem;
+      padding: 10px 16px;
+      outline: none;
+      resize: none;
+      max-height: 100px;
+    }
+
+    #chat-input:focus { border-color: var(--purple); }
+
+    #send-btn {
+      width: 42px; height: 42px;
+      border-radius: 50%;
+      border: none;
+      background: linear-gradient(135deg, var(--purple), var(--purple-dark));
+      color: #fff;
+      font-size: 1.1rem;
+      cursor: pointer;
+      flex-shrink: 0;
+    }
+
+    #send-btn:disabled { opacity: .4; }
+
+    /* ── Profile ────────────────────────────────────────────── */
+    .profile-hero {
+      text-align: center;
+      padding: 20px 0 24px;
+    }
+
+    .profile-avatar-wrap {
+      width: 80px; height: 80px;
+      border-radius: 50%;
+      background: linear-gradient(135deg, var(--purple), var(--purple-dark));
+      margin: 0 auto 12px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 2rem; overflow: hidden;
+    }
+
+    #profile-avatar { width: 100%; height: 100%; object-fit: cover; border-radius: 50%; }
+
+    .profile-name  { font-size: 1.3rem; font-weight: 700; }
+    .profile-email { font-size: .85rem; color: var(--muted); margin-top: 2px; }
+
+    .profile-stats {
+      display: flex;
+      gap: 12px;
+      margin: 16px 0;
+    }
+
+    .signout-btn {
+      width: 100%;
+      padding: 14px;
+      border-radius: 50px;
+      border: 1px solid #f87171;
+      background: transparent;
+      color: #f87171;
+      font-size: 1rem;
+      font-weight: 600;
+      cursor: pointer;
+      margin-top: 24px;
+    }
+
+    /* ── Modals ─────────────────────────────────────────────── */
+    .modal-overlay {
+      position: fixed; inset: 0;
+      background: rgba(0,0,0,.75);
+      display: flex; align-items: flex-end;
+      z-index: 200;
+      backdrop-filter: blur(4px);
+    }
+
+    .modal-sheet {
+      background: var(--surface);
+      border-radius: 24px 24px 0 0;
+      width: 100%;
+      max-width: 480px;
+      margin: 0 auto;
+      padding: 24px 20px 40px;
+      max-height: 90vh;
+      overflow-y: auto;
+    }
+
+    .modal-handle {
+      width: 36px; height: 4px;
+      background: var(--border);
+      border-radius: 2px;
+      margin: 0 auto 20px;
+    }
+
+    .modal-title {
+      font-size: 1.2rem;
+      font-weight: 700;
+      margin-bottom: 20px;
+    }
+
+    .form-label {
+      font-size: .8rem;
+      color: var(--muted);
+      margin-bottom: 6px;
+      display: block;
+    }
+
+    .form-input, .form-select {
+      width: 100%;
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      color: var(--text);
+      font-size: .95rem;
+      padding: 12px 14px;
+      margin-bottom: 14px;
+      outline: none;
+    }
+
+    .form-select option { background: var(--surface2); }
+    .form-input:focus, .form-select:focus { border-color: var(--purple); }
+
+    .image-pick-area {
+      border: 2px dashed var(--border);
+      border-radius: var(--radius);
+      padding: 20px;
+      text-align: center;
+      cursor: pointer;
+      margin-bottom: 14px;
+      color: var(--muted);
+      font-size: .9rem;
+      transition: border-color .2s;
+    }
+
+    .image-pick-area:hover { border-color: var(--purple); }
+
+    #preview-img {
+      width: 100%;
+      border-radius: var(--radius);
+      margin-bottom: 12px;
+      max-height: 200px;
+      object-fit: cover;
+    }
+
+    .scan-result {
+      background: var(--surface2);
+      border-radius: 10px;
+      padding: 10px 14px;
+      font-size: .82rem;
+      color: #a78bfa;
+      margin-bottom: 14px;
+    }
+
+    #upload-status { font-size: .8rem; color: var(--muted); margin-bottom: 10px; }
+
+    .modal-btn-row { display: flex; gap: 10px; margin-top: 4px; }
+
+    .modal-btn {
+      flex: 1;
+      padding: 13px;
+      border-radius: 50px;
+      border: none;
+      font-size: .95rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: opacity .2s;
+    }
+
+    .modal-btn:hover { opacity: .85; }
+    .modal-btn:disabled { opacity: .4; }
+    .modal-btn.primary { background: linear-gradient(135deg, var(--purple), var(--purple-dark)); color: #fff; }
+    .modal-btn.ghost   { background: var(--surface2); color: var(--muted); border: 1px solid var(--border); }
+    .modal-btn.danger  { background: transparent; color: #f87171; border: 1px solid #f87171; }
+
+    /* Detail modal */
+    .detail-img {
+      width: 100%;
+      border-radius: var(--radius);
+      max-height: 240px;
+      object-fit: cover;
+      margin-bottom: 16px;
+    }
+
+    .detail-name { font-size: 1.3rem; font-weight: 700; margin-bottom: 8px; }
+
+    .detail-tags {
+      display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 12px;
+    }
+
+    .detail-tag {
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: 50px;
+      padding: 4px 12px;
+      font-size: .78rem;
+      color: var(--muted);
+    }
+
+    .detail-desc {
+      font-size: .88rem;
+      color: var(--muted);
+      line-height: 1.6;
+      margin-bottom: 16px;
+    }
+
+    .wear-row {
+      display: flex; align-items: center; gap: 10px;
+      background: var(--surface2);
+      border-radius: var(--radius);
+      padding: 12px 14px;
+      margin-bottom: 16px;
+    }
+
+    .wear-count { font-size: 1.1rem; font-weight: 700; color: var(--purple); }
+    .wear-label { font-size: .8rem; color: var(--muted); }
+
+    /* ── Misc ───────────────────────────────────────────────── */
+    .hidden { display: none !important; }
+
+    .empty-state {
+      text-align: center;
+      color: var(--muted);
+      font-size: .9rem;
+      padding: 40px 0;
+      grid-column: 1 / -1;
+    }
+
+    .empty-state-sm {
+      text-align: center;
+      color: var(--muted);
+      font-size: .8rem;
+      padding: 10px 0;
+    }
+
+    .loading {
+      text-align: center;
+      color: var(--muted);
+      padding: 40px 0;
+      grid-column: 1 / -1;
+    }
+
+    @media (min-width: 481px) {
+      #app-screen { border: 1px solid var(--border); }
+    }
+  </style>
+</head>
+<body>
+
+<!-- ══════════════════ AUTH SCREEN ══════════════════ -->
+<div id="auth-screen">
+  <div class="auth-card">
+    <img src="cglogo.png" alt="ClosetGenius" class="auth-logo" />
+    <div class="auth-title" id="auth-title">Sign In</div>
+
+    <div id="name-field" class="hidden">
+      <input id="authName" class="auth-input" type="text" placeholder="Your name" />
+    </div>
+    <input id="authEmail" class="auth-input" type="email" placeholder="Email" />
+    <input id="authPass"  class="auth-input" type="password" placeholder="Password" />
+
+    <div id="authError"></div>
+
+    <button id="login-btn"  class="auth-btn primary" onclick="doLogin()">Sign In</button>
+    <button id="signup-btn" class="auth-btn primary hidden" onclick="doSignup()">Create Account</button>
+    <button id="reset-btn"  class="auth-btn ghost"   onclick="doReset()">Forgot Password?</button>
+
+    <span class="toggle-link" id="toggle-auth-link" onclick="toggleAuthMode()">New here? Create account</span>
+  </div>
+</div>
+
+<!-- ══════════════════ APP SCREEN ══════════════════ -->
+<div id="app-screen" class="hidden">
+
+  <div class="app-header">
+    <img src="cglogo.png" alt="" class="header-logo" />
+    <div class="header-title">ClosetGenius</div>
+    <div style="width:32px"></div>
+  </div>
+
+  <!-- DASHBOARD -->
+  <div id="tab-dashboard" class="tab-content">
+    <div class="greeting">Hey, <span id="dash-name">there</span> 👋</div>
+    <div style="font-size:.85rem;color:var(--muted);margin-top:4px">What are we wearing today?</div>
+
+    <div class="stat-row">
+      <div class="stat-card">
+        <div class="stat-num" id="dash-count">0</div>
+        <div class="stat-label">Items in Closet</div>
+      </div>
+    </div>
+
+    <div class="section-title">Outfit Suggestion</div>
+    <button class="suggest-btn" id="suggest-btn" onclick="getOutfitSuggestion()">✨ Get Outfit Suggestion</button>
+    <div id="suggestion-output">Tap above to get a suggestion from Nova.</div>
+
+    <div class="section-title">Recently Added</div>
+    <div class="recent-grid" id="dash-recent"></div>
+  </div>
+
+  <!-- CLOSET -->
+  <div id="tab-closet" class="tab-content hidden">
+    <div class="closet-header">
+      <div class="closet-header-left">
+        <div class="closet-title">My Closet</div>
+        <div class="closet-subtitle" id="closet-count">0 items</div>
+      </div>
+      <button class="add-btn" onclick="openAddItem()">+</button>
+    </div>
+
+    <div class="filter-row">
+      <button class="filter-btn active" onclick="filterCloset('all')">All</button>
+      <button class="filter-btn" onclick="filterCloset('tops')">👕 Tops</button>
+      <button class="filter-btn" onclick="filterCloset('bottoms')">👖 Bottoms</button>
+      <button class="filter-btn" onclick="filterCloset('dresses')">👗 Dresses</button>
+      <button class="filter-btn" onclick="filterCloset('outerwear')">🧥 Outerwear</button>
+      <button class="filter-btn" onclick="filterCloset('shoes')">👟 Shoes</button>
+      <button class="filter-btn" onclick="filterCloset('accessories')">👜 Accessories</button>
+    </div>
+
+    <div class="item-grid" id="closet-grid">
+      <div class="loading">Loading your closet...</div>
+    </div>
+  </div>
+
+  <!-- NOVA CHAT -->
+  <div id="tab-nova" class="tab-content hidden">
+    <div class="nova-header">
+      <div class="nova-title">Nova ✨</div>
+      <div class="nova-sub">Your AI style assistant</div>
+    </div>
+    <div id="chat-messages">
+      <div class="chat-msg nova">Hey! I'm Nova, your personal stylist. Ask me anything about your wardrobe — I can suggest outfits, help you find pieces, or just chat style 💜</div>
+    </div>
+    <div class="chat-input-row">
+      <textarea id="chat-input" rows="1" placeholder="Ask Nova anything..." onkeydown="handleChatKey(event)"></textarea>
+      <button id="send-btn" onclick="sendChat()">➤</button>
+    </div>
+  </div>
+
+  <!-- PROFILE -->
+  <div id="tab-profile" class="tab-content hidden">
+    <div class="profile-hero">
+      <div class="profile-avatar-wrap">
+        <img id="profile-avatar" class="hidden" alt="Avatar" />
+        <span id="profile-avatar-icon">👤</span>
+      </div>
+      <div class="profile-name"  id="profile-name">—</div>
+      <div class="profile-email" id="profile-email">—</div>
+    </div>
+
+    <div class="stat-row">
+      <div class="stat-card">
+        <div class="stat-num" id="profile-count">0</div>
+        <div class="stat-label">Items</div>
+      </div>
+    </div>
+
+    <button class="signout-btn" onclick="doSignOut()">Sign Out</button>
+  </div>
+
+  <!-- BOTTOM NAV -->
+  <nav class="bottom-nav">
+    <button class="nav-item active" id="nav-dashboard" onclick="switchTab('dashboard')">
+      <span class="nav-icon">🏠</span>Dashboard
+    </button>
+    <button class="nav-item" id="nav-closet" onclick="switchTab('closet')">
+      <span class="nav-icon">👗</span>Closet
+    </button>
+    <button class="nav-item" id="nav-nova" onclick="switchTab('nova')">
+      <span class="nav-icon">✨</span>Nova
+    </button>
+    <button class="nav-item" id="nav-profile" onclick="switchTab('profile')">
+      <span class="nav-icon">👤</span>Profile
+    </button>
+  </nav>
+</div>
+
+<!-- ══════════════════ ADD ITEM MODAL ══════════════════ -->
+<div id="add-item-modal" class="modal-overlay hidden" onclick="if(event.target===this)closeAddItem()">
+  <div class="modal-sheet">
+    <div class="modal-handle"></div>
+    <div class="modal-title">Add Clothing Item</div>
+
+    <img id="preview-img" class="hidden" alt="Preview" />
+
+    <div class="image-pick-area" onclick="document.getElementById('img-input').click()">
+      📷 Tap to choose a photo
+    </div>
+    <input id="img-input" type="file" accept="image/*" class="hidden" onchange="handleImagePick(event)" />
+
+    <div id="upload-status"></div>
+    <div id="scan-result" class="scan-result hidden"></div>
+
+    <form id="item-form" onsubmit="return false">
+      <label class="form-label">Item Name</label>
+      <input id="item-name" class="form-input" type="text" placeholder="e.g. White Linen Shirt" />
+
+      <label class="form-label">Category</label>
+      <select id="item-category" class="form-select">
+        <option value="tops">Tops</option>
+        <option value="bottoms">Bottoms</option>
+        <option value="dresses">Dresses</option>
+        <option value="outerwear">Outerwear</option>
+        <option value="shoes">Shoes</option>
+        <option value="accessories">Accessories</option>
+      </select>
+
+      <label class="form-label">Color</label>
+      <select id="item-color" class="form-select">
+        <option value="black">Black</option>
+        <option value="white">White</option>
+        <option value="gray">Gray</option>
+        <option value="navy">Navy</option>
+        <option value="blue">Blue</option>
+        <option value="red">Red</option>
+        <option value="pink">Pink</option>
+        <option value="purple">Purple</option>
+        <option value="green">Green</option>
+        <option value="yellow">Yellow</option>
+        <option value="orange">Orange</option>
+        <option value="brown">Brown</option>
+        <option value="beige">Beige</option>
+        <option value="cream">Cream</option>
+        <option value="burgundy">Burgundy</option>
+        <option value="teal">Teal</option>
+      </select>
+
+      <label class="form-label">Season</label>
+      <select id="item-season" class="form-select">
+        <option value="allSeason">All Season</option>
+        <option value="spring">Spring</option>
+        <option value="summer">Summer</option>
+        <option value="fall">Fall</option>
+        <option value="winter">Winter</option>
+      </select>
+
+      <label class="form-label">Description</label>
+      <input id="item-desc" class="form-input" type="text" placeholder="Optional description" />
+    </form>
+
+    <div class="modal-btn-row">
+      <button class="modal-btn ghost" onclick="closeAddItem()">Cancel</button>
+      <button class="modal-btn primary" id="scan-btn" onclick="scanItem()" disabled>Scan with AI</button>
+    </div>
+    <div style="height:10px"></div>
+    <button class="modal-btn primary" id="save-item-btn" onclick="saveItem()" style="width:100%">Save Item</button>
+  </div>
+</div>
+
+<!-- ══════════════════ ITEM DETAIL MODAL ══════════════════ -->
+<div id="item-detail-modal" class="modal-overlay hidden" onclick="if(event.target===this)closeItemDetail()">
+  <div class="modal-sheet">
+    <div class="modal-handle"></div>
+    <img id="detail-img" class="detail-img hidden" alt="Item" />
+    <div class="detail-name" id="detail-name"></div>
+    <div class="detail-tags">
+      <span class="detail-tag" id="detail-category"></span>
+      <span class="detail-tag" id="detail-color"></span>
+      <span class="detail-tag" id="detail-season"></span>
+    </div>
+    <div class="wear-row">
+      <div>
+        <div class="wear-count" id="detail-wear">0</div>
+        <div class="wear-label">times worn</div>
+      </div>
+      <button class="modal-btn primary" style="flex:1;margin-left:12px" onclick="wearItem()">Log Wear</button>
+    </div>
+    <div class="detail-desc" id="detail-desc"></div>
+    <div class="modal-btn-row">
+      <button class="modal-btn ghost"   onclick="closeItemDetail()">Close</button>
+      <button class="modal-btn danger"  onclick="deleteItem()">Delete</button>
+    </div>
+  </div>
+</div>
+
+</body>
+</html>
