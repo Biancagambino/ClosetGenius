@@ -108,11 +108,8 @@ struct SwipeBuilderView: View {
                         .foregroundColor(.white)
                         .frame(maxWidth: .infinity)
                         .padding(.vertical, 16)
-                        .background(
-                            selectedItems.isEmpty
-                            ? Color.gray
-                            : themeManager.currentTheme.gradient
-                        )
+                        .background(themeManager.currentTheme.gradient)
+                        .opacity(selectedItems.isEmpty ? 0.5 : 1.0)
                         .cornerRadius(16)
                 }
                 .disabled(selectedItems.isEmpty)

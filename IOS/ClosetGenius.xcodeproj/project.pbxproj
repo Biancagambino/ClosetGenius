@@ -290,6 +290,9 @@
 				CURRENT_PROJECT_VERSION = 1;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_NSCameraUsageDescription = "ClosetGenius uses your camera to scan and add clothing items to your closet.";
+				INFOPLIST_KEY_NSPhotoLibraryUsageDescription = "ClosetGenius accesses your photos to add clothing items and share outfits.";
+				INFOPLIST_KEY_NSPhotoLibraryAddUsageDescription = "ClosetGenius saves outfit photos to your photo library.";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
@@ -321,6 +324,9 @@
 				CURRENT_PROJECT_VERSION = 1;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_NSCameraUsageDescription = "ClosetGenius uses your camera to scan and add clothing items to your closet.";
+				INFOPLIST_KEY_NSPhotoLibraryUsageDescription = "ClosetGenius accesses your photos to add clothing items and share outfits.";
+				INFOPLIST_KEY_NSPhotoLibraryAddUsageDescription = "ClosetGenius saves outfit photos to your photo library.";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;

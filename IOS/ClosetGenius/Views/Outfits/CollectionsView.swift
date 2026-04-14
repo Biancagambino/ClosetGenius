@@ -242,7 +242,8 @@ struct CreateCollectionSheet: View {
                     Text("Create Collection")
                         .font(.headline).foregroundColor(.white)
                         .frame(maxWidth: .infinity).padding(.vertical, 16)
-                        .background(name.isEmpty ? Color.gray : themeManager.currentTheme.gradient)
+                        .background(themeManager.currentTheme.gradient)
+                        .opacity(name.isEmpty ? 0.5 : 1.0)
                         .cornerRadius(14)
                 }
                 .disabled(name.isEmpty)
