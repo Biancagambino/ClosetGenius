@@ -137,6 +137,20 @@
       margin-bottom: 4px;
     }
 
+    .video-wrapper {
+      width: 100%;
+      border-radius: 16px;
+      overflow: hidden;
+      margin-bottom: 24px;
+      background: #000;
+    }
+
+    .video-wrapper video {
+      width: 100%;
+      display: block;
+      border-radius: 16px;
+    }
+
     footer {
       margin-top: 40px;
       font-size: 0.8rem;
@@ -151,15 +165,14 @@
     <h1>ClosetGenius</h1>
     <p class="tagline">Your AI-powered closet assistant.<br>Scan, style, and share your wardrobe.</p>
 
-    <div class="qr-wrapper">
-      <div id="qrcode">
-        <div class="placeholder">TestFlight link<br>coming soon</div>
-      </div>
+    <div class="video-wrapper">
+      <video controls playsinline poster="">
+        <source src="closetgeniustutorial.mov" type="video/mp4" />
+        Your browser does not support the video tag.
+      </video>
     </div>
 
-    <p class="cta"><strong>Join the beta</strong><br>Scan the QR code or tap below to test ClosetGenius on TestFlight.</p>
-
-    <a href="#" class="btn disabled" id="tfBtn">Coming Soon on TestFlight</a>
+    <p class="cta"><strong>See it in action</strong><br>Watch the full walkthrough of ClosetGenius.</p>
 
     <div class="features">
       <div class="feature"><span>👗</span>AI clothing scanner</div>
