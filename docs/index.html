@@ -1,0 +1,199 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>ClosetGenius — Beta</title>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      background: #0d0d0d;
+      color: #f0f0f0;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 40px 20px;
+    }
+
+    .card {
+      background: #1a1a1a;
+      border: 1px solid #2a2a2a;
+      border-radius: 28px;
+      padding: 48px 40px;
+      max-width: 420px;
+      width: 100%;
+      text-align: center;
+      box-shadow: 0 24px 80px rgba(138, 43, 226, 0.2);
+    }
+
+    .logo {
+      width: 90px;
+      height: 90px;
+      border-radius: 22px;
+      margin: 0 auto 20px;
+      display: block;
+    }
+
+    h1 {
+      font-size: 2rem;
+      font-weight: 700;
+      background: linear-gradient(135deg, #8B2BE2, #6B1BB2);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+      margin-bottom: 8px;
+    }
+
+    .tagline {
+      font-size: 1rem;
+      color: #888;
+      margin-bottom: 36px;
+      line-height: 1.5;
+    }
+
+    .qr-wrapper {
+      background: #fff;
+      border-radius: 16px;
+      padding: 16px;
+      display: inline-block;
+      margin-bottom: 24px;
+    }
+
+    #qrcode canvas,
+    #qrcode img {
+      display: block;
+    }
+
+    .placeholder {
+      width: 180px;
+      height: 180px;
+      background: #f0f0f0;
+      border-radius: 8px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: #999;
+      font-size: 0.8rem;
+      text-align: center;
+      padding: 16px;
+    }
+
+    .cta {
+      font-size: 0.95rem;
+      color: #aaa;
+      margin-bottom: 28px;
+      line-height: 1.6;
+    }
+
+    .cta strong {
+      color: #fff;
+    }
+
+    .btn {
+      display: inline-block;
+      padding: 14px 32px;
+      border-radius: 50px;
+      background: linear-gradient(135deg, #8B2BE2, #6B1BB2);
+      color: #fff;
+      font-size: 1rem;
+      font-weight: 600;
+      text-decoration: none;
+      transition: opacity 0.2s;
+    }
+
+    .btn:hover { opacity: 0.85; }
+
+    .btn.disabled {
+      background: #333;
+      color: #666;
+      cursor: default;
+      pointer-events: none;
+    }
+
+    .features {
+      margin-top: 36px;
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+      text-align: left;
+    }
+
+    .feature {
+      background: #222;
+      border-radius: 12px;
+      padding: 14px;
+      font-size: 0.85rem;
+      color: #ccc;
+    }
+
+    .feature span {
+      display: block;
+      font-size: 1.3rem;
+      margin-bottom: 4px;
+    }
+
+    footer {
+      margin-top: 40px;
+      font-size: 0.8rem;
+      color: #444;
+    }
+  </style>
+</head>
+<body>
+
+  <div class="card">
+    <img src="cglogo.png" alt="ClosetGenius Logo" class="logo" />
+    <h1>ClosetGenius</h1>
+    <p class="tagline">Your AI-powered closet assistant.<br>Scan, style, and share your wardrobe.</p>
+
+    <div class="qr-wrapper">
+      <div id="qrcode">
+        <div class="placeholder">TestFlight link<br>coming soon</div>
+      </div>
+    </div>
+
+    <p class="cta"><strong>Join the beta</strong><br>Scan the QR code or tap below to test ClosetGenius on TestFlight.</p>
+
+    <a href="#" class="btn disabled" id="tfBtn">Coming Soon on TestFlight</a>
+
+    <div class="features">
+      <div class="feature"><span>👗</span>AI clothing scanner</div>
+      <div class="feature"><span>✨</span>Outfit suggestions</div>
+      <div class="feature"><span>👯</span>Friends & social feed</div>
+      <div class="feature"><span>🔄</span>Clothing trades</div>
+      <div class="feature"><span>🤖</span>Nova AI stylist</div>
+      <div class="feature"><span>🎨</span>Custom themes</div>
+    </div>
+  </div>
+
+  <footer>Made with love by Bianca &mdash; &copy; 2026 ClosetGenius</footer>
+
+  <script>
+    // ---- PASTE YOUR TESTFLIGHT LINK HERE WHEN READY ----
+    const TESTFLIGHT_URL = "";
+    // ----------------------------------------------------
+
+    if (TESTFLIGHT_URL) {
+      document.getElementById("qrcode").innerHTML = "";
+      new QRCode(document.getElementById("qrcode"), {
+        text: TESTFLIGHT_URL,
+        width: 180,
+        height: 180,
+        colorDark: "#1a1a1a",
+        colorLight: "#ffffff",
+        correctLevel: QRCode.CorrectLevel.H
+      });
+      const btn = document.getElementById("tfBtn");
+      btn.href = TESTFLIGHT_URL;
+      btn.textContent = "Join Beta on TestFlight";
+      btn.classList.remove("disabled");
+    }
+  </script>
+
+</body>
+</html>
