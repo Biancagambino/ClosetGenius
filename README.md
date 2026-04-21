@@ -42,12 +42,6 @@ The iOS app communicates with a FastAPI backend deployed on Google Cloud Run tha
 
 ## Setup
 
-### Prerequisites
-
-- Xcode 15+
-- A Firebase project with Firestore and Authentication enabled
-- A Cloudinary account
-
 ### iOS App
 
 1. Clone the repository
