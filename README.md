@@ -32,7 +32,7 @@ ClosetGenius is an AI-powered wardrobe management app for iOS that helps you org
 
 ## How It Works
 
-The iOS app communicates with a FastAPI backend deployed on Google Cloud Run that handles both clothing classification and AI chat. The backend runs permanently on GCP with a stable URL — no configuration needed.
+The iOS app communicates with a FastAPI backend deployed on Google Cloud Run that handles both clothing classification and AI chat. The backend scales to zero when idle and spins up automatically on first request — no configuration needed.
 
 **Scan flow:** The app sends a clothing photo to the `/scan` endpoint → Florence-2 analyzes the image → the app receives structured clothing metadata and pre-fills the item form.
 

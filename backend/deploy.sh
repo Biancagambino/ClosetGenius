@@ -4,7 +4,7 @@ set -e
 IMAGE=us-central1-docker.pkg.dev/closetgenius-backend/closetgenius/api:latest
 
 echo "Building..."
-docker build -t $IMAGE /Users/biancagambino/Downloads/ClosetGenius/backend
+docker build -t $IMAGE /Users/biancagambino/Desktop/ClosetGenius/backend
 
 echo "Pushing..."
 docker push $IMAGE
@@ -16,8 +16,8 @@ gcloud run deploy closetgenius-api \
   --platform=managed \
   --cpu=8 \
   --memory=16Gi \
-  --min-instances=1 \
-  --max-instances=3 \
+  --min-instances=0 \
+  --max-instances=1 \
   --timeout=300 \
   --cpu-boost \
   --set-secrets=GROQ_API_KEY=GROQ_API_KEY:latest \

@@ -55,15 +55,25 @@
     // AUTH
     // ══════════════════════════════════════════════════════════════
     onAuthStateChanged(auth, async user => {
-      if (user) {
-        currentUser = user;
-        const snap = await getDoc(doc(db, "users", user.uid));
-        if (snap.exists()) currentUser._profile = snap.data();
-        showApp();
-        loadCloset();
-      } else {
-        currentUser = null;
-        showAuth();
+      try {
+        if (user) {
+          currentUser = user;
+          setAuthError(`Signed in as ${user.email} — loading app...`, true);
+          try {
+            const snap = await getDoc(doc(db, "users", user.uid));
+            if (snap.exists()) currentUser._profile = snap.data();
+          } catch (e) {
+            console.warn("Could not load profile:", e.message);
+          }
+          showApp();
+          loadCloset();
+        } else {
+          currentUser = null;
+          showAuth();
+        }
+      } catch (e) {
+        setAuthError(`App error: ${e.message}`);
+        console.error(e);
       }
     });
 

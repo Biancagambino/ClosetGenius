@@ -45,7 +45,7 @@ gcloud artifacts repositories create closetgenius \
 gcloud auth configure-docker us-central1-docker.pkg.dev
 
 # Build and push (from the backend/ folder)
-cd /Users/biancagambino/Downloads/ClosetGenius/backend
+cd /Users/biancagambino/Desktop/ClosetGenius/backend
 
 docker build -t us-central1-docker.pkg.dev/closetgenius-backend/closetgenius/api:latest .
 docker push us-central1-docker.pkg.dev/closetgenius-backend/closetgenius/api:latest
@@ -64,8 +64,8 @@ gcloud run deploy closetgenius-api \
   --gpu-type=nvidia-l4 \
   --cpu=8 \
   --memory=32Gi \
-  --min-instances=1 \
-  --max-instances=3 \
+  --min-instances=0 \
+  --max-instances=1 \
   --timeout=300 \
   --set-secrets=GROQ_API_KEY=GROQ_API_KEY:latest \
   --allow-unauthenticated
