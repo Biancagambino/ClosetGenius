@@ -13,3 +13,4 @@ DerivedData/
 build/
 Pods/
 .build/
+.claude/
