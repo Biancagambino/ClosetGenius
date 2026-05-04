@@ -38,6 +38,8 @@ The iOS app communicates with a FastAPI backend deployed on Google Cloud Run tha
 
 **Nova chat flow:** The app sends a conversation message to the `/chat` endpoint → the backend queries Llama 3.3 via Groq → Nova's response is returned to the UI.
 
+New users are shown a tutorial video demonstrating the app immediately after creating an account.
+
 ---
 
 ## Setup
